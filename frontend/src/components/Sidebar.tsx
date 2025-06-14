@@ -71,7 +71,12 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
             <span className="text-black/30 dark:text-white/30">|</span>
             <Link
               href="/settings"
-              className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition duration-150"
+              className={cn(
+                'p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition duration-150',
+                segments.includes('settings')
+                  ? 'text-black dark:text-white'
+                  : 'text-black/70 dark:text-white/70'
+              )}
             >
               <Settings className="cursor-pointer w-5 h-5" />
             </Link>
@@ -80,13 +85,13 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
       </div>
 
       {/* Mobile Navigation */}
-      <div className="fixed bottom-0 w-full z-50 flex flex-row items-center gap-x-6 bg-transparent backdrop-blur-sm border-t border-black/5 dark:border-white/5 px-4 py-4 shadow-sm md:hidden">
+      <div className="fixed bottom-0 w-full z-50 flex flex-row items-center justify-around bg-transparent backdrop-blur-sm border-t border-black/5 dark:border-white/5 px-4 py-4 shadow-sm md:hidden">
         {navLinks.map((link, i) => (
           <Link
             href={link.href}
             key={i}
             className={cn(
-              'relative flex flex-col items-center space-y-1 text-center w-full',
+              'relative flex flex-col items-center space-y-1 text-center',
               link.active
                 ? 'text-black dark:text-white'
                 : 'text-black dark:text-white/70',

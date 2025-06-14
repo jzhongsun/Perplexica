@@ -8,9 +8,6 @@ const nextConfig = {
         destination: 'http://localhost:8000/api/v1/:path*'
       }
     ]
-  },
-  experimental: {
-    serverActions: true
   }
 }
 

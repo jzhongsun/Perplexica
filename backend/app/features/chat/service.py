@@ -5,10 +5,8 @@ from typing import AsyncGenerator, List, Dict, Any, Optional
 from datetime import datetime
 
 from fastapi import HTTPException
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain.callbacks import AsyncIteratorCallbackHandler
-from langchain.memory import ConversationBufferMemory
+
+from semantic_kernel.contents import ChatMessageContent, AuthorRole
 
 from app.features.db.service import DatabaseService
 from app.features.providers import get_chat_model, get_embedding_model
@@ -34,13 +32,16 @@ class ChatService:
     
     async def create_chat(self, request: ChatRequest) -> ChatResponse:
         """Create a new chat."""
+        print(request)
         try:
             chat_id = str(uuid.uuid4())
             
             # Create new chat
             message = Message(
+                chat_id=chat_id,
+                message_id=request.message.message_id,
                 role="user",
-                content=request.message,
+                content=request.message.content,
                 timestamp=datetime.now()
             )
             
@@ -57,6 +58,8 @@ class ChatService:
             
             # Generate assistant response (mock)
             assistant_message = Message(
+                chat_id=chat_id,
+                message_id=request.message.message_id,
                 role="assistant",
                 content=f"Echo: {request.message}",  # Replace with actual AI response
                 timestamp=datetime.now()
@@ -68,6 +71,7 @@ class ChatService:
                 message=assistant_message
             )
         except Exception as e:
+            print(e)
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to create chat: {str(e)}"
@@ -127,20 +131,20 @@ class ChatService:
     async def _prepare_messages(
         self,
         request: ChatRequest
-    ) -> List[BaseMessage]:
+    ) -> List[ChatMessageContent]:
         """Convert chat history to LangChain messages."""
-        messages: List[BaseMessage] = []
+        messages: List[ChatMessageContent] = []
         for role, content in request.history:
             if role == "human":
-                messages.append(HumanMessage(content=content))
+                messages.append(ChatMessageContent(content=content, role=AuthorRole.USER))
             elif role == "assistant":
-                messages.append(AIMessage(content=content))
+                messages.append(ChatMessageContent(content=content, role=AuthorRole.ASSISTANT))
         return messages
 
     async def _get_models(
         self,
         request: ChatRequest
-    ) -> tuple[BaseChatModel, Any]:  # Any for embedding model
+    ) -> tuple[ChatMessageContent, Any]:  # Any for embedding model
         """Get chat and embedding models."""
         try:
             chat_model = await get_chat_model(

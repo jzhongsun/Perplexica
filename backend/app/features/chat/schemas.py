@@ -4,7 +4,9 @@ from datetime import datetime
 
 class Message(BaseModel):
     """Message model."""
-    role: str = Field(..., description="Role of the message sender (user/assistant)")
+    chat_id: str
+    message_id: str
+    role: Optional[str] = Field(default="User", description="Role of the message sender (user/assistant)")
     content: str = Field(..., description="Content of the message")
     timestamp: datetime = Field(default_factory=datetime.now)
 
@@ -18,9 +20,18 @@ class EmbeddingModel(BaseModel):
     provider: str = Field(..., description="Model provider")
     name: str = Field(..., description="Model name")
 
+# enum OptimizationMode
+
 class ChatRequest(BaseModel):
     """Chat request model."""
-    message: str = Field(..., description="Message content")
+    content: str
+    message: Message = Field(default=None)
+    optimization_mode: str
+    # = 'speed' | 'balanced' | 'quality'
+    focus_mode: str
+    history: Optional[List[Dict[str, str]]]
+    files: Optional[List[str]]
+    system_instructions: Optional[str]
     chat_id: Optional[str] = Field(None, description="Chat ID for continuing conversation")
     stream: bool = Field(default=True, description="Whether to stream the response")
 

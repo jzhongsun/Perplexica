@@ -63,7 +63,7 @@ const loadMessages = async (
   setFiles: (files: File[]) => void,
   setFileIds: (fileIds: string[]) => void,
 ) => {
-  const res = await fetch(`/api/chats/${chatId}`, {
+  const res = await fetch(`/api/v1/chats/${chatId}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -314,7 +314,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
       }
     };
 
-    const res = await fetch('/api/chat', {
+    const res = await fetch('/api/v1/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -322,16 +322,16 @@ const ChatWindow = ({ id }: { id?: string }) => {
       body: JSON.stringify({
         content: message,
         message: {
-          messageId: messageId,
-          chatId: chatId!,
+          message_id: messageId,
+          chat_id: chatId!,
           content: message,
         },
-        chatId: chatId!,
+        chat_id: chatId!,
         files: fileIds,
-        focusMode: focusMode,
-        optimizationMode: optimizationMode,
+        focus_mode: focusMode,
+        optimization_mode: optimizationMode,
         history: chatHistory,
-        systemInstructions: localStorage.getItem('systemInstructions'),
+        system_instructions: localStorage.getItem('systemInstructions'),
       }),
     });
 
