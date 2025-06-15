@@ -2,7 +2,7 @@ from typing import AsyncIterable
 import uuid
 
 from semantic_kernel.agents import AgentResponseItem
-from semantic_kernel.contents import ChatMessageContent, StreamingChatMessageContent
+from semantic_kernel.contents import ChatMessageContent, StreamingChatMessageContent, TextContent
 
 from ..ui_messages import UIMessage, TextUIPart
 
@@ -10,7 +10,7 @@ def ui_message_to_sk_chat_message_content(ui_message: UIMessage) -> ChatMessageC
     return ChatMessageContent(
         role=ui_message.role,
         items=[
-            TextUIPart(text=ui_message.parts[0].text, type="text")
+            TextContent(text=ui_message.parts[0].text)
         ]
     )
 

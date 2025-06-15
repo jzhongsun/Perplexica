@@ -17,9 +17,10 @@ from app.core.utils.compute_similarity import compute_similarity
 from app.core.utils.format_history import format_chat_history_as_string
 from app.features.searxng import search_searxng
 from app.features.documents import Document, get_documents_from_links
+from semantic_kernel.agents import Agent, ChatCompletionAgent, DeclarativeSpecMixin, register_agent_type
 
-@dataclass
-class MetaSearchAgent:
+@register_agent_type("meta_search_agent")
+class MetaSearchAgent (Agent, DeclarativeSpecMixin):
     """Meta search agent class."""
     active_engines: List[str]
     query_generator_prompt: str

@@ -94,5 +94,9 @@ async def handle_chat_stream(
             return
 
     return EventSourceResponse(event_generator(), headers={
-        "x-vercel-ai-ui-message-stream": "v1"
+        "x-vercel-ai-ui-message-stream": "v1",
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
     })
