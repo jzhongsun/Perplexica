@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     
     # Model Settings
     OPENAI_API_KEY: Optional[str] = None
+    OPENAI_BASE_URL: Optional[str] = None
+    OPENAI_MODEL_NAME: Optional[str] = None
+    
     GROQ_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None

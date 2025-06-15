@@ -2,7 +2,6 @@
 
 /* eslint-disable @next/next/no-img-element */
 import React, { MutableRefObject, useEffect, useState } from 'react';
-import { Message } from './ChatWindow';
 import { cn } from '@/lib/utils';
 import {
   BookCopy,
@@ -20,13 +19,15 @@ import SearchImages from './SearchImages';
 import SearchVideos from './SearchVideos';
 import { useSpeech } from 'react-text-to-speech';
 import ThinkBox from './ThinkBox';
+import { UIMessage } from '@ai-sdk/react';
+import { convertUIMessageToMessage } from '@/lib/messages';
 
 const ThinkTagProcessor = ({ children }: { children: React.ReactNode }) => {
   return <ThinkBox content={children as string} />;
 };
 
 const MessageBox = ({
-  message,
+  uiMessage,
   messageIndex,
   history,
   loading,
@@ -35,15 +36,18 @@ const MessageBox = ({
   rewrite,
   sendMessage,
 }: {
-  message: Message;
+  uiMessage: UIMessage;
   messageIndex: number;
-  history: Message[];
+  history: UIMessage[];
   loading: boolean;
   dividerRef?: MutableRefObject<HTMLDivElement | null>;
   isLast: boolean;
   rewrite: (messageId: string) => void;
   sendMessage: (message: string) => void;
 }) => {
+  console.log(uiMessage, messageIndex, loading, isLast);
+  const message = convertUIMessageToMessage(uiMessage);
+  const lastUserMessage = uiMessage.role === 'assistant' ? convertUIMessageToMessage(history[messageIndex - 1]) : message;
   const [parsedMessage, setParsedMessage] = useState(message.content);
   const [speechMessage, setSpeechMessage] = useState(message.content);
 
@@ -243,13 +247,13 @@ const MessageBox = ({
           </div>
           <div className="lg:sticky lg:top-20 flex flex-col items-center space-y-3 w-full lg:w-3/12 z-30 h-full pb-4">
             <SearchImages
-              query={history[messageIndex - 1].content}
+              query={lastUserMessage.content}
               chatHistory={history.slice(0, messageIndex - 1)}
               messageId={message.messageId}
             />
             <SearchVideos
               chatHistory={history.slice(0, messageIndex - 1)}
-              query={history[messageIndex - 1].content}
+              query={lastUserMessage.content}
               messageId={message.messageId}
             />
           </div>

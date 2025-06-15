@@ -1,30 +1,14 @@
 """Chat router module."""
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends
 
 from .service import ChatService
 from .schemas import (
     ChatListResponse,
-    ChatRequest,
-    ChatResponse,
-    Message,
-    ChatHistory,
-    ChatMetadata
+    ChatHistory
 )
 
-router = APIRouter(prefix="", tags=["chat"])
-
-@router.post("/chat", response_model=ChatResponse)
-async def create_chat(
-    request: ChatRequest,
-    chat_service: ChatService = Depends(ChatService)
-) -> ChatResponse:
-    """Create a new chat."""
-    print(request)
-    return await chat_service.create_chat(request)
-
-@router.get("/chats", response_model=ChatListResponse)
+router = APIRouter(prefix="/chats", tags=["chat"])
+@router.get("", response_model=ChatListResponse)
 async def list_chats(
     chat_service: ChatService = Depends(ChatService)
 ) -> ChatListResponse:
@@ -32,7 +16,7 @@ async def list_chats(
     response = await chat_service.list_chats()
     return ChatListResponse(chats=response, status=200)
 
-@router.get("/chats/{chat_id}", response_model=ChatHistory)
+@router.get("/{chat_id}", response_model=ChatHistory)
 async def get_chat(
     chat_id: str,
     chat_service: ChatService = Depends(ChatService)
@@ -40,7 +24,7 @@ async def get_chat(
     """Get chat history by ID."""
     return await chat_service.get_chat(chat_id)
 
-@router.delete("/chats/{chat_id}")
+@router.delete("/{chat_id}")
 async def delete_chat(
     chat_id: str,
     chat_service: ChatService = Depends(ChatService)

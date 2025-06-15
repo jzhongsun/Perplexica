@@ -2,9 +2,11 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import MessageInput from './MessageInput';
-import { File, Message } from './ChatWindow';
+import { File } from './ChatWindow';
 import MessageBox from './MessageBox';
 import MessageBoxLoading from './MessageBoxLoading';
+import { UIMessage } from '@ai-sdk/react';
+import { convertUIMessageToMessage } from '@/lib/messages';
 
 const Chat = ({
   loading,
@@ -17,7 +19,7 @@ const Chat = ({
   files,
   setFiles,
 }: {
-  messages: Message[];
+  messages: UIMessage[];
   sendMessage: (message: string) => void;
   loading: boolean;
   messageAppeared: boolean;
@@ -53,7 +55,8 @@ const Chat = ({
     };
 
     if (messages.length === 1) {
-      document.title = `${messages[0].content.substring(0, 30)} - Perplexica`;
+      const message = convertUIMessageToMessage(messages[0]);
+      document.title = `${message.content.substring(0, 30)} - Perplexica`;
     }
 
     if (messages[messages.length - 1]?.role == 'user') {
@@ -67,10 +70,10 @@ const Chat = ({
         const isLast = i === messages.length - 1;
 
         return (
-          <Fragment key={msg.messageId}>
+          <Fragment key={msg.id}>
             <MessageBox
               key={i}
-              message={msg}
+              uiMessage={msg}
               messageIndex={i}
               history={messages}
               loading={loading}

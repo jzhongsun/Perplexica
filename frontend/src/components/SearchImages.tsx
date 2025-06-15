@@ -3,7 +3,7 @@ import { ImagesIcon, PlusIcon } from 'lucide-react';
 import { useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
-import { Message } from './ChatWindow';
+import { UIMessage } from '@ai-sdk/react';
 
 type Image = {
   url: string;
@@ -17,7 +17,7 @@ const SearchImages = ({
   messageId,
 }: {
   query: string;
-  chatHistory: Message[];
+  chatHistory: UIMessage[];
   messageId: string;
 }) => {
   const [images, setImages] = useState<Image[] | null>(null);

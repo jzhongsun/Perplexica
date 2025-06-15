@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useChat, UIMessage } from '@ai-sdk/react';
 import { Document } from '@langchain/core/documents';
 import Navbar from './Navbar';
 import Chat from './Chat';
@@ -12,9 +13,6 @@ import { getSuggestions } from '@/lib/actions';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
 import NextError from 'next/error';
-import { UIMessage } from '@ai-sdk/react';
-import { TextUIPart } from 'ai';
-import { useChat, Chat as UiChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 
 export type Message = {
@@ -59,9 +57,9 @@ const checkConfig = async (
 
 const loadMessages = async (
   chatId: string,
-  setMessages: (messages: UIMessage[]) => void,
+  setMessages: (messages: Message[]) => void,
   setIsMessagesLoaded: (loaded: boolean) => void,
-  setChatHistory: (history: UIMessage[]) => void,
+  setChatHistory: (history: [string, string][]) => void,
   setFocusMode: (mode: string) => void,
   setNotFound: (notFound: boolean) => void,
   setFiles: (files: File[]) => void,
@@ -82,15 +80,22 @@ const loadMessages = async (
 
   const data = await res.json();
 
-  const messages = [] as UIMessage[];
+  const messages = data.messages.map((msg: any) => {
+    return {
+      ...msg,
+      ...JSON.parse(msg.metadata),
+    };
+  }) as Message[];
 
   setMessages(messages);
 
-  const history = messages as UIMessage[];
+  const history = messages.map((msg) => {
+    return [msg.role, msg.content];
+  }) as [string, string][];
 
   console.debug(new Date(), 'app:messages_loaded');
 
-  // document.title = messages[0].parts[0].text;
+  document.title = messages[0].content;
 
   const files = data.chat.files.map((file: any) => {
     return {
@@ -119,17 +124,6 @@ const ChatWindow = ({ id }: { id?: string }) => {
   const [hasError, setHasError] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  const transport = new DefaultChatTransport({
-    api: 'http://localhost:8000/api/v1/chat-stream'
-  });
-
-  const chat = new UiChat({
-    id: chatId!,
-    transport: transport,
-  });
-
-  const chatHelper = useChat({ chat: chat });
-
   useEffect(() => {
     checkConfig(
       setIsConfigReady,
@@ -139,9 +133,10 @@ const ChatWindow = ({ id }: { id?: string }) => {
   }, []);
 
   const [loading, setLoading] = useState(false);
+  const [messageAppeared, setMessageAppeared] = useState(false);
 
-  const [chatHistory, setChatHistory] = useState<UIMessage[]>([]);
-  const [messages, setMessages] = useState<UIMessage[]>([]);
+  const [chatHistory, setChatHistory] = useState<[string, string][]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
@@ -162,15 +157,9 @@ const ChatWindow = ({ id }: { id?: string }) => {
     ) {
       loadMessages(
         chatId,
-        (messages) => {
-          setMessages(messages as UIMessage[]);
-          chatHelper.setMessages(messages as UIMessage[]);
-        },
+        setMessages,
         setIsMessagesLoaded,
-        (history) => {
-          setChatHistory(history as UIMessage[]);
-          // chatHelper.setMessages(history as UIMessage[]);
-        },
+        setChatHistory,
         setFocusMode,
         setNotFound,
         setFiles,
@@ -180,12 +169,11 @@ const ChatWindow = ({ id }: { id?: string }) => {
       setNewChatCreated(true);
       setIsMessagesLoaded(true);
       setChatId(crypto.randomBytes(20).toString('hex'));
-      setChatId(chatHelper.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const messagesRef = useRef<UIMessage[]>([]);
+  const messagesRef = useRef<Message[]>([]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -200,7 +188,35 @@ const ChatWindow = ({ id }: { id?: string }) => {
     }
   }, [isMessagesLoaded, isConfigReady]);
 
-  const sendMessage = async (message: string, messageId?: string) => {
+  const {
+    messages: streamMessages,
+    sendMessage,
+    error,
+    status,
+    id: idKey,
+  } = useChat({
+    id: chatId!,
+    transport: new DefaultChatTransport({
+      api: 'http://localhost:8000/api/v1/chat-stream',
+      body: {
+        options: {
+          optimization_mode: optimizationMode,
+          focus_mode: focusMode,
+        }
+      }
+    }),
+    onFinish: (message) => {
+      console.log(message);
+    },
+    onToolCall: (toolCall) => {
+      console.log(toolCall);
+    },
+    onError: (error) => {
+      console.log(error);
+    },
+  });
+
+  const submitMessage = async (message: string, messageId?: string) => {
     if (loading) return;
     if (!isConfigReady) {
       toast.error('Cannot send message before the configuration is ready');
@@ -208,6 +224,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
     }
 
     setLoading(true);
+    setMessageAppeared(false);
 
     let sources: Document[] | undefined = undefined;
     let recievedMessage = '';
@@ -215,143 +232,17 @@ const ChatWindow = ({ id }: { id?: string }) => {
 
     messageId = messageId ?? crypto.randomBytes(7).toString('hex');
 
-    // setMessages((prevMessages) => [
-    //   ...prevMessages,
-    //   {
-    //     id: messageId,
-    //     role: 'user',
-    //     parts: [
-    //       {
-    //         type: 'text',
-    //         text: message,
-    //       },
-    //     ],
-    //   }
-    // ]);
+    setMessages((prevMessages) => [
+      ...prevMessages
+    ]);
 
-    // const messageHandler = async (data: any) => {
-    //   if (data.type === 'error') {
-    //     toast.error(data.data);
-    //     setLoading(false);
-    //     return;
-    //   }
-
-    //   if (data.type === 'sources') {
-    //     sources = data.data;
-    //     if (!added) {
-    //       setMessages((prevMessages) => [
-    //         ...prevMessages,
-    //         {
-    //           content: '',
-    //           messageId: data.messageId,
-    //           chatId: chatId!,
-    //           role: 'assistant',
-    //           sources: sources,
-    //           createdAt: new Date(),
-    //         },
-    //       ]);
-    //       added = true;
-    //     }
-    //     setMessageAppeared(true);
-    //   }
-
-    //   if (data.type === 'message') {
-    //     if (!added) {
-    //       setMessages((prevMessages) => [
-    //         ...prevMessages,
-    //         {
-    //           content: data.data,
-    //           messageId: data.messageId,
-    //           chatId: chatId!,
-    //           role: 'assistant',
-    //           sources: sources,
-    //           createdAt: new Date(),
-    //         },
-    //       ]);
-    //       added = true;
-    //     }
-
-    //     setMessages((prev) =>
-    //       prev.map((message) => {
-    //         if (message.messageId === data.messageId) {
-    //           return { ...message, content: message.content + data.data };
-    //         }
-
-    //         return message;
-    //       }),
-    //     );
-
-    //     recievedMessage += data.data;
-    //     setMessageAppeared(true);
-    //   }
-
-    //   if (data.type === 'messageEnd') {
-    //     setChatHistory((prevHistory) => [
-    //       ...prevHistory,
-    //       ['human', message],
-    //       ['assistant', recievedMessage],
-    //     ]);
-
-    //     setLoading(false);
-
-    //     const lastMsg = messagesRef.current[messagesRef.current.length - 1];
-
-    //     const autoImageSearch = localStorage.getItem('autoImageSearch');
-    //     const autoVideoSearch = localStorage.getItem('autoVideoSearch');
-
-    //     if (autoImageSearch === 'true') {
-    //       document
-    //         .getElementById(`search-images-${lastMsg.messageId}`)
-    //         ?.click();
-    //     }
-
-    //     if (autoVideoSearch === 'true') {
-    //       document
-    //         .getElementById(`search-videos-${lastMsg.messageId}`)
-    //         ?.click();
-    //     }
-
-    //     if (
-    //       lastMsg.role === 'assistant' &&
-    //       lastMsg.sources &&
-    //       lastMsg.sources.length > 0 &&
-    //       !lastMsg.suggestions
-    //     ) {
-    //       const suggestions = await getSuggestions(messagesRef.current);
-    //       setMessages((prev) =>
-    //         prev.map((msg) => {
-    //           if (msg.messageId === lastMsg.messageId) {
-    //             return { ...msg, suggestions: suggestions };
-    //           }
-    //           return msg;
-    //         }),
-    //       );
-    //     }
-    //   }
-    // };
-
-    await chatHelper.sendMessage({
-      id: messageId,
-      role: 'user',
-      parts: [
-        {
-          type: 'text',
-          text: message,
-        },
-      ],
-    }, {
-      body: {
-        options: {
-          optimization_mode: optimizationMode,
-          focus_mode: focusMode,
-          // system_instructions: localStorage.getItem('systemInstructions'),
-        }
-      }
+    sendMessage({
+      text: message,
     });
   };
 
   const rewrite = (messageId: string) => {
-    const index = messages.findIndex((msg) => msg.id === messageId);
+    const index = messages.findIndex((msg) => msg.messageId === messageId);
 
     if (index === -1) return;
 
@@ -364,12 +255,12 @@ const ChatWindow = ({ id }: { id?: string }) => {
       return [...prev.slice(0, messages.length > 2 ? index - 1 : 0)];
     });
 
-    sendMessage((message.parts[0] as TextUIPart)?.text, message.id);
+    submitMessage(message.content, message.messageId);
   };
 
   useEffect(() => {
     if (isReady && initialMessage && isConfigReady) {
-      sendMessage(initialMessage);
+      submitMessage(initialMessage);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConfigReady, isReady, initialMessage]);
@@ -396,14 +287,14 @@ const ChatWindow = ({ id }: { id?: string }) => {
       <NextError statusCode={404} />
     ) : (
       <div>
-        {chatHelper.messages.length > 0 ? (
+        {messages.length > 0 ? (
           <>
-            <Navbar chatId={chatHelper.id!} messages={chatHelper.messages} />
+            <Navbar chatId={chatId!} messages={messages} />
             <Chat
-              loading={chatHelper.status === 'streaming' || chatHelper.status === 'submitted'}
-              messages={chatHelper.messages}
-              sendMessage={sendMessage}
-              messageAppeared={chatHelper.status === 'streaming' || chatHelper.status === 'ready'}
+              loading={loading}
+              messages={messages}
+              sendMessage={submitMessage}
+              messageAppeared={messageAppeared}
               rewrite={rewrite}
               fileIds={fileIds}
               setFileIds={setFileIds}
@@ -412,8 +303,48 @@ const ChatWindow = ({ id }: { id?: string }) => {
             />
           </>
         ) : (
+          <>
+        {streamMessages.map((message: UIMessage) => (
+          <div key={message.id} style={{ marginBottom: '10px', padding: '5px', border: '1px solid #eee' }}>
+            <strong>{message.role === 'user' ? 'You' : 'AI'}: - {message.id}</strong>
+            {/* Render message parts */}
+            {message.parts.map((part, index) => {
+              const partKey = `${message.id}-part-${index}`;
+              switch (part.type) {
+                case 'text':
+                  // For Markdown: import Markdown from 'react-markdown'; <Markdown>{part.text}</Markdown>
+                  return <span key={partKey}> {part.text}</span>;
+                case 'tool-invocation':
+                  // Basic rendering for tool invocation state
+                  return (
+                    <div key={partKey} style={{ marginLeft: '10px', borderLeft: '2px solid blue', paddingLeft: '5px' }}>
+                      <em>Tool: {part.toolInvocation.toolName} ({part.toolInvocation.state})</em>
+                      {part.toolInvocation.state === 'call' && <pre>Args: {JSON.stringify(part.toolInvocation.args)}</pre>}
+                      {part.toolInvocation.state === 'result' && <pre>Result: {JSON.stringify(part.toolInvocation.result)}</pre>}
+                      {/* {part.toolInvocation.state === 'error' && <pre style={{color: 'red'}}>Error: {part.toolInvocation.errorMessage}</pre>} */}
+                    </div>
+                  );
+                case 'file':
+                  return <div key={partKey} style={{ marginLeft: '10px', fontStyle: '' }}>File: {part.filename || part.url} ({part.mediaType})</div>;
+                case 'source-url':
+                   return <div key={partKey} style={{ marginLeft: '10px', fontSize: '0.8em' }}>Source: <a href={part.source.url} target="_blank" rel="noopener noreferrer">{part.source.title || part.source.url}</a></div>;
+                case 'reasoning':
+                    return <div key={partKey} style={{ marginLeft: '10px', color: 'purple', fontSize: '0.9em' }}>Reasoning: {part.text}</div>;
+                case 'step-start':
+                    return <hr key={partKey} style={{ margin: '5px 0', borderColor: '#ddd' }} />;
+                default:
+                  // This case should ideally not be hit if all part types are handled.
+                  // The type system should ensure `part` is one of the known types.
+                  // However, as a fallback:
+                  const unknownPart = part as any;
+                  return <span key={partKey}> [Unsupported Part: {unknownPart.type}]</span>;
+              }
+            })}
+          </div>
+        ))}
+
           <EmptyChat
-            sendMessage={sendMessage}
+            sendMessage={submitMessage}
             focusMode={focusMode}
             setFocusMode={setFocusMode}
             optimizationMode={optimizationMode}
@@ -423,6 +354,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
             files={files}
             setFiles={setFiles}
           />
+          </>          
         )}
       </div>
     )

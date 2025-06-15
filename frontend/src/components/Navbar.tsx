@@ -1,5 +1,4 @@
 import { Clock, Edit, Share, Trash, FileText, FileDown } from 'lucide-react';
-import { Message } from './ChatWindow';
 import { useEffect, useState, Fragment } from 'react';
 import { formatTimeDifference } from '@/lib/utils';
 import DeleteChat from './DeleteChat';
@@ -10,6 +9,8 @@ import {
   Transition,
 } from '@headlessui/react';
 import jsPDF from 'jspdf';
+import { UIMessage } from '@ai-sdk/react';
+import { convertUIMessageToMessage } from '@/lib/messages';
 
 const downloadFile = (filename: string, content: string, type: string) => {
   const blob = new Blob([content], { type });
@@ -25,7 +26,8 @@ const downloadFile = (filename: string, content: string, type: string) => {
   }, 0);
 };
 
-const exportAsMarkdown = (messages: Message[], title: string) => {
+const exportAsMarkdown = (uiMessages: UIMessage[], title: string) => {
+  const messages = uiMessages.map(convertUIMessageToMessage);
   const date = new Date(messages[0]?.createdAt || Date.now()).toLocaleString();
   let md = `# 💬 Chat Export: ${title}\n\n`;
   md += `*Exported on: ${date}*\n\n---\n`;
@@ -47,7 +49,8 @@ const exportAsMarkdown = (messages: Message[], title: string) => {
   downloadFile(`${title || 'chat'}.md`, md, 'text/markdown');
 };
 
-const exportAsPDF = (messages: Message[], title: string) => {
+const exportAsPDF = (uiMessages: UIMessage[], title: string) => {
+  const messages = uiMessages.map(convertUIMessageToMessage);
   const doc = new jsPDF();
   const date = new Date(messages[0]?.createdAt || Date.now()).toLocaleString();
   let y = 15;
@@ -122,7 +125,7 @@ const Navbar = ({
   chatId,
   messages,
 }: {
-  messages: Message[];
+  messages: UIMessage[];
   chatId: string;
 }) => {
   const [title, setTitle] = useState<string>('');
@@ -130,14 +133,15 @@ const Navbar = ({
 
   useEffect(() => {
     if (messages.length > 0) {
+      const message = convertUIMessageToMessage(messages[0]);
       const newTitle =
-        messages[0].content.length > 20
-          ? `${messages[0].content.substring(0, 20).trim()}...`
-          : messages[0].content;
+        message.content.length > 20
+          ? `${message.content.substring(0, 20).trim()}...`
+          : message.content;
       setTitle(newTitle);
       const newTimeAgo = formatTimeDifference(
         new Date(),
-        messages[0].createdAt,
+        message.createdAt,
       );
       setTimeAgo(newTimeAgo);
     }
@@ -146,9 +150,10 @@ const Navbar = ({
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (messages.length > 0) {
+        const message = convertUIMessageToMessage(messages[0]);
         const newTimeAgo = formatTimeDifference(
           new Date(),
-          messages[0].createdAt,
+          message.createdAt,
         );
         setTimeAgo(newTimeAgo);
       }

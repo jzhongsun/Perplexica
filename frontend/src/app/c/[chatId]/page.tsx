@@ -1,4 +1,4 @@
-import ChatWindow from '@/components/ChatWindow';
+import ChatWindow from '@/components/ChatWindowV2';
 import React from 'react';
 
 const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {

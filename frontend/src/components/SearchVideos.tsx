@@ -3,7 +3,7 @@ import { PlayCircle, PlayIcon, PlusIcon, VideoIcon } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Lightbox, { GenericSlide, VideoSlide } from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
-import { Message } from './ChatWindow';
+import { UIMessage } from '@ai-sdk/react';
 
 type Video = {
   url: string;
@@ -30,7 +30,7 @@ const Searchvideos = ({
   messageId,
 }: {
   query: string;
-  chatHistory: Message[];
+  chatHistory: UIMessage[];
   messageId: string;
 }) => {
   const [videos, setVideos] = useState<Video[] | null>(null);

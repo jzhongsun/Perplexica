@@ -10,6 +10,7 @@ from app.features.weather.router import router as weather_router
 from app.features.config.router import router as config_router
 from app.features.files.router import router as files_router
 from app.features.chat.router import router as chat_router
+from app.features.chat.router_stream import router as chat_stream_router
 from app.features.discover.router import router as discover_router
 
 router = APIRouter()
@@ -24,4 +25,5 @@ router.include_router(weather_router)
 router.include_router(config_router)
 router.include_router(files_router)
 router.include_router(chat_router) 
+router.include_router(chat_stream_router)
 router.include_router(discover_router)
