@@ -1,0 +1,45 @@
+{
+  "welcome": "Welcome to Perplexica",
+  "language": "Language",
+  "switchLanguage": "Switch Language",
+  "english": "English",
+  "simplifiedChinese": "Simplified Chinese",
+  "hongKong": "Traditional Chinese (Hong Kong)",
+  
+  "metadata": {
+    "title": "Chat - Perplexica",
+    "description": "Chat with the internet, chat with Perplexica."
+  },
+
+  "chat": {
+    "emptyState": {
+      "title": "Research begins here.",
+      "placeholder": "Ask me anything...",
+      "send": "Send"
+    },
+    "error": {
+      "configError": "An error occurred while checking the configuration",
+      "loadError": "Failed to load messages"
+    },
+    "settings": {
+      "title": "Settings",
+      "focusMode": "Focus Mode",
+      "optimizationMode": "Optimization Mode",
+      "speed": "Speed",
+      "quality": "Quality"
+    },
+    "widgets": {
+      "weather": {
+        "title": "Weather",
+        "loading": "Loading weather information...",
+        "humidity": "Humidity",
+        "now": "Now"
+      },
+      "news": {
+        "title": "Latest News",
+        "loading": "Loading news articles...",
+        "error": "Could not load news"
+      }
+    }
+  }
+} 

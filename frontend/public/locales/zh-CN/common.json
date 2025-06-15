@@ -1,0 +1,45 @@
+{
+  "welcome": "欢迎使用 Perplexica",
+  "language": "语言",
+  "switchLanguage": "切换语言",
+  "english": "英文",
+  "simplifiedChinese": "简体中文",
+  "hongKong": "繁体中文（香港）",
+  
+  "metadata": {
+    "title": "聊天 - Perplexica",
+    "description": "与互联网对话，与 Perplexica 聊天。"
+  },
+
+  "chat": {
+    "emptyState": {
+      "title": "从这里开始探索...",
+      "placeholder": "问我任何问题...",
+      "send": "发送"
+    },
+    "error": {
+      "configError": "检查配置时发生错误",
+      "loadError": "加载消息失败"
+    },
+    "settings": {
+      "title": "设置",
+      "focusMode": "焦点模式",
+      "optimizationMode": "优化模式",
+      "speed": "速度",
+      "quality": "质量"
+    },
+    "widgets": {
+      "weather": {
+        "title": "天气",
+        "loading": "正在加载天气信息...",
+        "humidity": "湿度",
+        "now": "现在"
+      },
+      "news": {
+        "title": "最新新闻",
+        "loading": "正在加载新闻文章...",
+        "error": "无法加载新闻"
+      }
+    }
+  }
+} 

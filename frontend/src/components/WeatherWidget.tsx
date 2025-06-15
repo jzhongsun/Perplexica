@@ -1,5 +1,6 @@
 import { Cloud, Sun, CloudRain, CloudSnow, Wind } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface WeatherData {
   temperature: number;
@@ -11,6 +12,7 @@ interface WeatherData {
 }
 
 const WeatherWidget = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState<WeatherData>({
     temperature: 0,
     condition: '',
@@ -144,8 +146,8 @@ const WeatherWidget = () => {
               {data.condition}
             </span>
             <div className="flex flex-row justify-between w-full mt-auto pt-1 border-t border-light-200 dark:border-dark-200 text-xs text-black/60 dark:text-white/60">
-              <span>Humidity: {data.humidity}%</span>
-              <span>Now</span>
+              <span>{t('chat.widgets.weather.humidity')}: {data.humidity}%</span>
+              <span>{t('chat.widgets.weather.now')}</span>
             </div>
           </div>
         </>

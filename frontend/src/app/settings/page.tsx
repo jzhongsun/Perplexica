@@ -8,6 +8,7 @@ import { ImagesIcon, VideoIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import ThemeSwitcher from '@/components/theme/Switcher';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 interface SettingsType {
   openaiApiKey: string;
@@ -209,6 +210,12 @@ const Page = () => {
                   Theme
                 </p>
                 <ThemeSwitcher />
+              </div>
+              <div className="flex flex-col space-y-1">
+                <p className="text-black/70 dark:text-white/70 text-sm">
+                  Language
+                </p>
+                <LanguageSwitcher />
               </div>
             </SettingsSection>
 

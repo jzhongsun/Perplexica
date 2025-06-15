@@ -19,8 +19,10 @@ from app.features.searxng import search_searxng
 from app.features.documents import Document, get_documents_from_links
 from semantic_kernel.agents import Agent, ChatCompletionAgent, DeclarativeSpecMixin, register_agent_type
 
-@register_agent_type("meta_search_agent")
-class MetaSearchAgent (Agent, DeclarativeSpecMixin):
+# @register_agent_type("meta_search_agent")
+# class MetaSearchAgent (Agent, DeclarativeSpecMixin):
+@dataclass
+class MetaSearchAgent:
     """Meta search agent class."""
     active_engines: List[str]
     query_generator_prompt: str

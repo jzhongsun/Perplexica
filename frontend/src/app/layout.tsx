@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import TopNav from '@/components/Sidebar';
 import { Toaster } from 'sonner';
 import ThemeProvider from '@/components/theme/Provider';
+import I18nProvider from '@/components/I18nProvider';
 
 const montserrat = Montserrat({
   weight: ['300', '400', '500', '700'],
@@ -24,21 +25,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // We'll use browser's language detection instead
   return (
-    <html className="h-full" lang="en" suppressHydrationWarning>
+    <html className="h-full" suppressHydrationWarning>
       <body className={cn('h-full', montserrat.className)}>
-        <ThemeProvider>
-          <TopNav>{children}</TopNav>
-          <Toaster
-            toastOptions={{
-              unstyled: true,
-              classNames: {
-                toast:
-                  'bg-light-primary dark:bg-dark-secondary dark:text-white/70 text-black-70 rounded-lg p-4 flex flex-row items-center space-x-2',
-              },
-            }}
-          />
-        </ThemeProvider>
+        <I18nProvider>
+          <ThemeProvider>
+            <TopNav>{children}</TopNav>
+            <Toaster
+              toastOptions={{
+                unstyled: true,
+                classNames: {
+                  toast:
+                    'bg-light-primary dark:bg-dark-secondary dark:text-white/70 text-black-70 rounded-lg p-4 flex flex-row items-center space-x-2',
+                },
+              }}
+            />
+          </ThemeProvider>
+        </I18nProvider>
       </body>
     </html>
   );

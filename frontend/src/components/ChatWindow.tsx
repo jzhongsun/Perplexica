@@ -16,6 +16,7 @@ import { UIMessage } from '@ai-sdk/react';
 import { TextUIPart } from 'ai';
 import { useChat, Chat as UiChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
+import { useTranslation } from 'react-i18next';
 
 export type Message = {
   messageId: string;
@@ -36,6 +37,7 @@ export interface File {
 const checkConfig = async (
   setIsConfigReady: (ready: boolean) => void,
   setHasError: (hasError: boolean) => void,
+  t: (key: string) => string,
 ) => {
   try {
     const autoImageSearch = localStorage.getItem('autoImageSearch');
@@ -51,9 +53,10 @@ const checkConfig = async (
 
     setIsConfigReady(true);
   } catch (err) {
-    console.error('An error occurred while checking the configuration:', err);
+    console.error(t('chat.error.configError'), err);
     setIsConfigReady(false);
     setHasError(true);
+    toast.error(t('chat.error.configError'));
   }
 };
 
@@ -109,6 +112,7 @@ const loadMessages = async (
 };
 
 const ChatWindow = ({ id }: { id?: string }) => {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const initialMessage = searchParams.get('q');
 
@@ -134,6 +138,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
     checkConfig(
       setIsConfigReady,
       setHasError,
+      t
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

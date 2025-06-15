@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Article {
   title: string;
@@ -8,6 +9,7 @@ interface Article {
 }
 
 const NewsArticleWidget = () => {
+  const { t } = useTranslation();
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -39,7 +41,7 @@ const NewsArticleWidget = () => {
           </div>
         </>
       ) : error ? (
-        <div className="w-full text-xs text-red-400">Could not load news.</div>
+        <div className="w-full text-xs text-red-400">{t('chat.widgets.news.error')}</div>
       ) : article ? (
         <a
           href={`/?q=Summary: ${article.url}`}
