@@ -1,5 +1,5 @@
 {
-  "welcome": "歡迎使用 Perplexica",
+  "welcome": "歡迎使用 Danus",
   "language": "語言",
   "switchLanguage": "切換語言",
   "english": "英文",
@@ -7,8 +7,8 @@
   "hongKong": "繁體中文（香港）",
   
   "metadata": {
-    "title": "聊天 - Perplexica",
-    "description": "與互聯網對話，與 Perplexica 聊天。"
+    "title": "聊天 - Danus",
+    "description": "與互聯網對話，與 Danus 聊天。"
   },
 
   "chat": {
@@ -40,6 +40,46 @@
         "loading": "正在載入新聞文章...",
         "error": "無法載入新聞"
       }
+    },
+    "message": {
+      "copy": "複製訊息",
+      "copied": "已複製！",
+      "rewrite": "重寫訊息",
+      "speak": "朗讀訊息",
+      "stopSpeaking": "停止朗讀",
+      "citations": "引用"
     }
+  },
+
+  "settings": {
+    "title": "設定",
+    "appearance": {
+      "title": "外觀",
+      "theme": "主題",
+      "language": "語言"
+    },
+    "automaticSearch": {
+      "title": "自動搜尋",
+      "images": {
+        "title": "自動圖片搜尋",
+        "description": "在聊天回覆中自動搜尋相關圖片"
+      },
+      "videos": {
+        "title": "自動影片搜尋",
+        "description": "在聊天回覆中自動搜尋相關影片"
+      }
+    },
+    "systemInstructions": {
+      "title": "系統指令",
+      "placeholder": "輸入任何特殊的 LLM 指令"
+    },
+    "loading": "正在載入設定..."
+  },
+
+  "nav": {
+    "home": "首頁",
+    "discover": "發現",
+    "library": "資料庫",
+    "settings": "設定"
   }
 } 

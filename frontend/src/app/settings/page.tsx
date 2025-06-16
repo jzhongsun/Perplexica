@@ -2,13 +2,14 @@
 
 import { Settings as SettingsIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Switch } from '@headlessui/react';
 import { ImagesIcon, VideoIcon } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
 import ThemeSwitcher from '@/components/theme/Switcher';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useTranslation } from 'react-i18next';
+import { Textarea } from '@/components/ui/textarea';
 
 interface SettingsType {
   openaiApiKey: string;
@@ -34,34 +35,6 @@ interface TextareaProps extends React.InputHTMLAttributes<HTMLTextAreaElement> {
   onSave?: (value: string) => void;
 }
 
-const Textarea = ({
-  className,
-  isSaving,
-  onSave,
-  ...restProps
-}: TextareaProps) => {
-  return (
-    <div className="relative">
-      <textarea
-        placeholder="Any special instructions for the LLM"
-        className="placeholder:text-sm text-sm w-full flex items-center justify-between p-3 bg-light-secondary dark:bg-dark-secondary rounded-lg hover:bg-light-200 dark:hover:bg-dark-200 transition-colors"
-        rows={4}
-        onBlur={(e) => onSave?.(e.target.value)}
-        {...restProps}
-      />
-      {isSaving && (
-        <div className="absolute right-3 top-3">
-          <Loader2
-            size={16}
-            className="animate-spin text-black/70 dark:text-white/70"
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
-
 const SettingsSection = ({
   title,
   children,
@@ -76,6 +49,8 @@ const SettingsSection = ({
 );
 
 const Page = () => {
+  const { t } = useTranslation();
+  const [mounted, setMounted] = useState(false);
   const [config, setConfig] = useState<SettingsType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [automaticImageSearch, setAutomaticImageSearch] = useState(false);
@@ -107,7 +82,13 @@ const Page = () => {
     };
 
     fetchConfig();
+    setMounted(true);
   }, []);
+
+  // Prevent hydration mismatch by not rendering until after mount
+  if (!mounted) {
+    return null;
+  }
 
   const saveConfig = async (key: string, value: any) => {
     setSavingStates((prev) => ({ ...prev, [key]: true }));
@@ -176,7 +157,7 @@ const Page = () => {
           </Link>
           <div className="flex flex-row space-x-0.5 items-center">
             <SettingsIcon size={23} />
-            <h1 className="text-3xl font-medium p-2">Settings</h1>
+            <h1 className="text-3xl font-medium p-2">{t('settings.title')}</h1>
           </div>
         </div>
         <hr className="border-t border-[#2B2C2C] my-4 w-full" />
@@ -200,26 +181,27 @@ const Page = () => {
               fill="currentFill"
             />
           </svg>
+          <span className="ml-2">{t('settings.loading')}</span>
         </div>
       ) : (
         config && (
           <div className="flex flex-col space-y-6 pb-28 lg:pb-8">
-            <SettingsSection title="Appearance">
+            <SettingsSection title={t('settings.appearance.title')}>
               <div className="flex flex-col space-y-1">
                 <p className="text-black/70 dark:text-white/70 text-sm">
-                  Theme
+                  {t('settings.appearance.theme')}
                 </p>
                 <ThemeSwitcher />
               </div>
               <div className="flex flex-col space-y-1">
                 <p className="text-black/70 dark:text-white/70 text-sm">
-                  Language
+                  {t('settings.appearance.language')}
                 </p>
                 <LanguageSwitcher />
               </div>
             </SettingsSection>
 
-            <SettingsSection title="Automatic Search">
+            <SettingsSection title={t('settings.automaticSearch.title')}>
               <div className="flex flex-col space-y-4">
                 <div className="flex items-center justify-between p-3 bg-light-secondary dark:bg-dark-secondary rounded-lg hover:bg-light-200 dark:hover:bg-dark-200 transition-colors">
                   <div className="flex items-center space-x-3">
@@ -231,11 +213,10 @@ const Page = () => {
                     </div>
                     <div>
                       <p className="text-sm text-black/90 dark:text-white/90 font-medium">
-                        Automatic Image Search
+                        {t('settings.automaticSearch.images.title')}
                       </p>
                       <p className="text-xs text-black/60 dark:text-white/60 mt-0.5">
-                        Automatically search for relevant images in chat
-                        responses
+                        {t('settings.automaticSearch.images.description')}
                       </p>
                     </div>
                   </div>
@@ -249,15 +230,13 @@ const Page = () => {
                       automaticImageSearch
                         ? 'bg-[#24A0ED]'
                         : 'bg-light-200 dark:bg-dark-200',
-                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none'
                     )}
                   >
                     <span
                       className={cn(
-                        automaticImageSearch
-                          ? 'translate-x-6'
-                          : 'translate-x-1',
-                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                        automaticImageSearch ? 'translate-x-6' : 'translate-x-1',
+                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform'
                       )}
                     />
                   </Switch>
@@ -273,11 +252,10 @@ const Page = () => {
                     </div>
                     <div>
                       <p className="text-sm text-black/90 dark:text-white/90 font-medium">
-                        Automatic Video Search
+                        {t('settings.automaticSearch.videos.title')}
                       </p>
                       <p className="text-xs text-black/60 dark:text-white/60 mt-0.5">
-                        Automatically search for relevant videos in chat
-                        responses
+                        {t('settings.automaticSearch.videos.description')}
                       </p>
                     </div>
                   </div>
@@ -291,15 +269,13 @@ const Page = () => {
                       automaticVideoSearch
                         ? 'bg-[#24A0ED]'
                         : 'bg-light-200 dark:bg-dark-200',
-                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none'
                     )}
                   >
                     <span
                       className={cn(
-                        automaticVideoSearch
-                          ? 'translate-x-6'
-                          : 'translate-x-1',
-                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                        automaticVideoSearch ? 'translate-x-6' : 'translate-x-1',
+                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform'
                       )}
                     />
                   </Switch>
@@ -307,17 +283,14 @@ const Page = () => {
               </div>
             </SettingsSection>
 
-            <SettingsSection title="System Instructions">
-              <div className="flex flex-col space-y-4">
-                <Textarea
-                  value={systemInstructions}
-                  isSaving={savingStates['systemInstructions']}
-                  onChange={(e) => {
-                    setSystemInstructions(e.target.value);
-                  }}
-                  onSave={(value) => saveConfig('systemInstructions', value)}
-                />
-              </div>
+            <SettingsSection title={t('settings.systemInstructions.title')}>
+              <Textarea
+                value={systemInstructions}
+                placeholder={t('settings.systemInstructions.placeholder')}
+                onChange={(e) => setSystemInstructions(e.target.value)}
+                onBlur={(e) => saveConfig('systemInstructions', e.target.value)}
+                isSaving={savingStates['systemInstructions']}
+              />
             </SettingsSection>
           </div>
         )

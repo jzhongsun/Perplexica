@@ -5,9 +5,9 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import Backend from 'i18next-http-backend';
 
-// 语言代码映射表
+// Language code mapping table
 const languageMap: { [key: string]: string } = {
-  zh: 'zh-CN',    // 默认中文映射到简体中文
+  zh: 'zh-CN',    // Default Chinese maps to Simplified Chinese
   'zh-cn': 'zh-CN',
   'zh-hans': 'zh-CN',
   'zh-hk': 'zh-HK',
@@ -15,7 +15,7 @@ const languageMap: { [key: string]: string } = {
   'zh-hant': 'zh-HK',
 };
 
-// 自定义语言检测器
+// Custom language detector
 const customLanguageDetector = {
   name: 'customLanguageDetector',
   lookup: () => {
@@ -51,8 +51,11 @@ const customLanguageDetector = {
   }
 };
 
-// Initialize i18next only if it hasn't been initialized yet
-if (!i18n.isInitialized) {
+const initI18n = () => {
+  if (i18n.isInitialized) {
+    return i18n;
+  }
+
   i18n
     .use(Backend)
     .use(LanguageDetector)
@@ -80,8 +83,10 @@ if (!i18n.isInitialized) {
       },
     });
 
-  // 添加自定义语言检测器
+  // Add custom language detector
   i18n.services.languageDetector.addDetector(customLanguageDetector);
-}
 
-export default i18n; 
+  return i18n;
+};
+
+export default initI18n(); 

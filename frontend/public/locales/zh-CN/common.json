@@ -1,5 +1,5 @@
 {
-  "welcome": "欢迎使用 Perplexica",
+  "welcome": "欢迎使用 Danus",
   "language": "语言",
   "switchLanguage": "切换语言",
   "english": "英文",
@@ -7,8 +7,8 @@
   "hongKong": "繁体中文（香港）",
   
   "metadata": {
-    "title": "聊天 - Perplexica",
-    "description": "与互联网对话，与 Perplexica 聊天。"
+    "title": "聊天 - Danus",
+    "description": "与互联网对话，与 Danus 聊天。"
   },
 
   "chat": {
@@ -40,6 +40,46 @@
         "loading": "正在加载新闻文章...",
         "error": "无法加载新闻"
       }
+    },
+    "message": {
+      "copy": "复制消息",
+      "copied": "已复制！",
+      "rewrite": "重写消息",
+      "speak": "朗读消息",
+      "stopSpeaking": "停止朗读",
+      "citations": "引用"
     }
+  },
+
+  "settings": {
+    "title": "设置",
+    "appearance": {
+      "title": "外观",
+      "theme": "主题",
+      "language": "语言"
+    },
+    "automaticSearch": {
+      "title": "自动搜索",
+      "images": {
+        "title": "自动图片搜索",
+        "description": "在聊天回复中自动搜索相关图片"
+      },
+      "videos": {
+        "title": "自动视频搜索",
+        "description": "在聊天回复中自动搜索相关视频"
+      }
+    },
+    "systemInstructions": {
+      "title": "系统指令",
+      "placeholder": "输入任何特殊的 LLM 指令"
+    },
+    "loading": "正在加载设置..."
+  },
+
+  "nav": {
+    "home": "首页",
+    "discover": "发现",
+    "library": "资料库",
+    "settings": "设置"
   }
 } 

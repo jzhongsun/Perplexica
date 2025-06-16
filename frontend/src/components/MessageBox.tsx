@@ -21,6 +21,7 @@ import { useSpeech } from 'react-text-to-speech';
 import ThinkBox from './ThinkBox';
 import { UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
+import { useTranslation } from 'react-i18next';
 
 const ThinkTagProcessor = ({ children }: { children: React.ReactNode }) => {
   return <ThinkBox content={children as string} />;
@@ -45,7 +46,7 @@ const MessageBox = ({
   rewrite: (messageId: string) => void;
   sendMessage: (message: string) => void;
 }) => {
-  console.log(uiMessage, messageIndex, loading, isLast);
+  const { t } = useTranslation();
   const message = convertUIMessageToMessage(uiMessage);
   const lastUserMessage = uiMessage.role === 'assistant' ? convertUIMessageToMessage(history[messageIndex - 1]) : message;
   const [parsedMessage, setParsedMessage] = useState(message.content);
@@ -194,6 +195,7 @@ const MessageBox = ({
                         }
                       }}
                       className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black dark:hover:text-white"
+                      title={speechStatus === 'started' ? t('chat.message.stopSpeaking') : t('chat.message.speak')}
                     >
                       {speechStatus === 'started' ? (
                         <StopCircle size={18} />

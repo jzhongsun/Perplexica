@@ -20,13 +20,15 @@ const initI18next = async (lang: string) => {
       fallbackNS: 'common',
       defaultNS: 'common',
       ns: 'common',
+      preload: ['en', 'zh-CN', 'zh-HK'],
     });
   return i18nInstance;
 };
 
-export async function getTranslation(lang: string) {
+export async function getTranslation(lang: string = 'en') {
   const i18nextInstance = await initI18next(lang);
   return {
     t: i18nextInstance.getFixedT(lang, 'common'),
+    i18n: i18nextInstance,
   };
 } 

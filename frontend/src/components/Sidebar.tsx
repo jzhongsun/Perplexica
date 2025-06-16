@@ -4,8 +4,9 @@ import { cn } from '@/lib/utils';
 import { BookOpenText, Home, Search, SquarePen, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useSelectedLayoutSegments } from 'next/navigation';
-import React, { type ReactNode } from 'react';
+import React, { type ReactNode, useState, useEffect } from 'react';
 import Layout from './Layout';
+import { useTranslation } from 'react-i18next';
 
 const HorizontalNavContainer = ({ children }: { children: ReactNode }) => {
   return (
@@ -15,34 +16,45 @@ const HorizontalNavContainer = ({ children }: { children: ReactNode }) => {
 
 const TopNav = ({ children }: { children: React.ReactNode }) => {
   const segments = useSelectedLayoutSegments();
+  const { t } = useTranslation();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const navLinks = [
     {
       icon: Home,
       href: '/',
       active: segments.length === 0 || segments.includes('c'),
-      label: 'Home',
+      label: t('nav.home'),
     },
     {
       icon: Search,
       href: '/discover',
       active: segments.includes('discover'),
-      label: 'Discover',
+      label: t('nav.discover'),
     },
     {
       icon: BookOpenText,
       href: '/library',
       active: segments.includes('library'),
-      label: 'Library',
+      label: t('nav.library'),
     },
   ];
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div>
       {/* Desktop Navigation */}
       <div className="hidden md:fixed md:top-0 md:left-0 md:right-0 md:z-50 md:flex md:flex-row">
         <div className="w-full h-12 flex flex-row items-center justify-between px-4 bg-transparent backdrop-blur-sm border-b border-black/5 dark:border-white/5">
-          <Link href="/">
+          <Link href="/" aria-label={t('nav.home')}>
             <SquarePen className="cursor-pointer w-5 h-5" />
           </Link>
 
@@ -58,8 +70,9 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
                       ? 'text-black dark:text-white'
                       : 'text-black/70 dark:text-white/70',
                   )}
+                  aria-current={link.active ? 'page' : undefined}
                 >
-                  <link.icon size={18} />
+                  <link.icon size={18} aria-hidden="true" />
                   <span className="text-sm">{link.label}</span>
                   {link.active && (
                     <div className="absolute bottom-0 left-0 h-0.5 w-full rounded-t-lg bg-black dark:bg-white" />
@@ -77,8 +90,10 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
                   ? 'text-black dark:text-white'
                   : 'text-black/70 dark:text-white/70'
               )}
+              aria-label={t('nav.settings')}
+              aria-current={segments.includes('settings') ? 'page' : undefined}
             >
-              <Settings className="cursor-pointer w-5 h-5" />
+              <Settings className="cursor-pointer w-5 h-5" aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -96,11 +111,12 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
                 ? 'text-black dark:text-white'
                 : 'text-black dark:text-white/70',
             )}
+            aria-current={link.active ? 'page' : undefined}
           >
             {link.active && (
               <div className="absolute top-0 -mt-4 h-1 w-full rounded-b-lg bg-black dark:bg-white" />
             )}
-            <link.icon />
+            <link.icon aria-hidden="true" />
             <p className="text-xs">{link.label}</p>
           </Link>
         ))}

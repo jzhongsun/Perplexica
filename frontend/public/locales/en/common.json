@@ -1,5 +1,5 @@
 {
-  "welcome": "Welcome to Perplexica",
+  "welcome": "Welcome to Danus",
   "language": "Language",
   "switchLanguage": "Switch Language",
   "english": "English",
@@ -7,8 +7,8 @@
   "hongKong": "Traditional Chinese (Hong Kong)",
   
   "metadata": {
-    "title": "Chat - Perplexica",
-    "description": "Chat with the internet, chat with Perplexica."
+    "title": "Chat - Danus",
+    "description": "Chat with the internet, chat with Danus."
   },
 
   "chat": {
@@ -40,6 +40,46 @@
         "loading": "Loading news articles...",
         "error": "Could not load news"
       }
+    },
+    "message": {
+      "copy": "Copy message",
+      "copied": "Copied!",
+      "rewrite": "Rewrite message",
+      "speak": "Speak message",
+      "stopSpeaking": "Stop speaking",
+      "citations": "Citations"
     }
+  },
+
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "language": "Language"
+    },
+    "automaticSearch": {
+      "title": "Automatic Search",
+      "images": {
+        "title": "Automatic Image Search",
+        "description": "Automatically search for relevant images in chat responses"
+      },
+      "videos": {
+        "title": "Automatic Video Search",
+        "description": "Automatically search for relevant videos in chat responses"
+      }
+    },
+    "systemInstructions": {
+      "title": "System Instructions",
+      "placeholder": "Any special instructions for the LLM"
+    },
+    "loading": "Loading settings..."
+  },
+
+  "nav": {
+    "home": "Home",
+    "discover": "Discover",
+    "library": "Library",
+    "settings": "Settings"
   }
 } 

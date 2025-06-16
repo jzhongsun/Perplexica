@@ -2,11 +2,11 @@
 
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-// 语言代码映射表
+// Language code mapping table
 const languageMap: { [key: string]: string } = {
-  zh: 'zh-CN',    // 默认中文映射到简体中文
+  zh: 'zh-CN',    // Default Chinese maps to Simplified Chinese
   'zh-cn': 'zh-CN',
   'zh-hans': 'zh-CN',
   'zh-hk': 'zh-HK',
@@ -19,13 +19,15 @@ export default function I18nProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    // 确保 i18next 已经初始化
+    // Ensure i18next is initialized
     if (!i18n.isInitialized) {
       i18n.init();
     }
 
-    // 获取当前语言
+    // Get current language
     let currentLang = 'en';
     try {
       currentLang = localStorage.getItem('i18nextLng') || navigator.language.toLowerCase();
@@ -38,16 +40,23 @@ export default function I18nProvider({
       // Ignore errors
     }
 
-    // 如果当前语言不是支持的语言之一，设置为英语
+    // If current language is not supported, set to English
     if (!['en', 'zh-CN', 'zh-HK'].includes(currentLang)) {
       currentLang = 'en';
     }
 
-    // 设置语言
+    // Set language
     if (i18n.language !== currentLang) {
       i18n.changeLanguage(currentLang);
     }
+
+    setMounted(true);
   }, []);
+
+  // Prevent hydration mismatch by not rendering until after mount
+  if (!mounted) {
+    return null;
+  }
 
   return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>;
 } 
