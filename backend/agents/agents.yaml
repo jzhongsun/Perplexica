@@ -1,0 +1,17 @@
+
+agents:
+  - name: sk_agent
+    description: A semantic kernel agent
+    agent_card:
+      name: sk_agent
+      description: A semantic kernel agent
+      version: 1.0.0
+      url: http://localhost:10010/sk_agent/
+      skills:
+        - id: sk_skill
+          name: sk_skill
+          description: A semantic kernel skill
+          version: 1.0.0
+          examples:
+    agent_config:
+      name: sk_agent

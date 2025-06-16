@@ -6,8 +6,6 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from semantic_kernel.contents import ChatMessageContent, AuthorRole
-
 from app.features.db.service import DatabaseService
 from app.features.providers import get_chat_model, get_embedding_model
 from app.features.files.service import FileService
@@ -22,6 +20,7 @@ from .schemas import (
     ChatHistory,
     ChatMetadata
 )
+import a2a.types as a2a_types
 
 class ChatService:
     """Chat service class."""
@@ -131,39 +130,15 @@ class ChatService:
     async def _prepare_messages(
         self,
         request: ChatRequest
-    ) -> List[ChatMessageContent]:
+    ) -> List[a2a_types.Message]:
         """Convert chat history to LangChain messages."""
-        messages: List[ChatMessageContent] = []
+        messages: List[a2a_types.Message] = []
         for role, content in request.history:
             if role == "human":
-                messages.append(ChatMessageContent(content=content, role=AuthorRole.USER))
+                messages.append(a2a_types.Message(content=content, role=a2a_types.Role.user))
             elif role == "assistant":
-                messages.append(ChatMessageContent(content=content, role=AuthorRole.ASSISTANT))
+                messages.append(a2a_types.Message(content=content, role=a2a_types.Role.agent))
         return messages
-
-    async def _get_models(
-        self,
-        request: ChatRequest
-    ) -> tuple[ChatMessageContent, Any]:  # Any for embedding model
-        """Get chat and embedding models."""
-        try:
-            chat_model = await get_chat_model(
-                provider=request.chatModel.provider,
-                model_name=request.chatModel.name,
-                custom_api_key=request.chatModel.customOpenAIKey,
-                custom_base_url=request.chatModel.customOpenAIBaseURL
-            )
-            embedding_model = await get_embedding_model(
-                provider=request.embeddingModel.provider,
-                model_name=request.embeddingModel.name
-            )
-            return chat_model, embedding_model
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to initialize models: {str(e)}"
-            )
-
     async def _save_message(
         self,
         message_id: str,
@@ -240,8 +215,7 @@ class ChatService:
 
             # Prepare models and context
             messages = await self._prepare_messages(request)
-            chat_model, embedding_model = await self._get_models(request)
-            
+
             # Get search handler
             search_handler = get_search_handler(request.focusMode)
             if not search_handler:
@@ -251,8 +225,8 @@ class ChatService:
                 )
 
             # Set up streaming
-            callback = AsyncIteratorCallbackHandler()
-            chat_model.callbacks = [callback]
+            # callback = AsyncIteratorCallbackHandler()
+            # chat_model.callbacks = [callback]
 
             # Start search and answer process
             response_content = ""
@@ -263,8 +237,8 @@ class ChatService:
                 search_handler.search_and_answer(
                     request.message.content,
                     messages,
-                    chat_model,
-                    embedding_model,
+                    request.chatModel,
+                    request.embeddingModel,
                     request.optimizationMode,
                     request.files,
                     request.systemInstructions
@@ -272,7 +246,7 @@ class ChatService:
             )
 
             try:
-                async for token in callback.aiter():
+                async for token in result.aiter():
                     response_content += token
                     yield json.dumps(
                         StreamResponse(
@@ -283,17 +257,16 @@ class ChatService:
                     ) + "\n"
 
                 # Get sources from response if any
-                result = await search_task
-                if hasattr(result, "additional_kwargs"):
-                    sources = result.additional_kwargs.get("sources", [])
-                    if sources:
-                        yield json.dumps(
-                            StreamResponse(
-                                type="sources",
-                                sources=sources,
-                                messageId=ai_message_id
-                            ).model_dump()
-                        ) + "\n"
+                # if hasattr(result, "additional_kwargs"):
+                #     sources = result.additional_kwargs.get("sources", [])
+                #     if sources:
+                #         yield json.dumps(
+                #             StreamResponse(
+                #                 type="sources",
+                #                 sources=sources,
+                #                 messageId=ai_message_id
+                #             ).model_dump()
+                #         ) + "\n"
 
                 # Save assistant message
                 await self._save_message(
