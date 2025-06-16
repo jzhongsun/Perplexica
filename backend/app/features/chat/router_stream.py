@@ -41,7 +41,7 @@ async def error_event_generator(error_message: str) -> AsyncGenerator[str, None]
 async def resolve_agent_client(request: ChatRequest) -> A2AClient:
     a2a_client = A2AClient(
         httpx_client=httpx.AsyncClient(),
-        url="http://localhost:10010/sk_agent/",
+        url="http://localhost:10010/web_search/",
     )
     return a2a_client
 

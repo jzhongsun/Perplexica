@@ -57,10 +57,14 @@ def a2a_message_to_sk_message(message: Message) -> ChatMessageContent:
 class SemanticKernelAgentExecutor(AgentExecutor):
     def __init__(
         self,
+        agent_name: str,
         agent_card: AgentCard,
-        agent_builder: Callable[[AgentCard, Dict[str, Any]], Agent],
+        agent_config: Dict[str, Any],
+        agent_builder: Callable[[str, AgentCard, Dict[str, Any]], Agent],
     ):
+        self.agent_name = agent_name
         self.agent_card = agent_card
+        self.agent_config = agent_config
         self.agent_builder = agent_builder
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
@@ -71,7 +75,7 @@ class SemanticKernelAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(task)
         task_updater = TaskUpdater(event_queue, task.id, task.contextId)
         
-        agent = self.agent_builder(self.agent_card, task.metadata)
+        agent = self.agent_builder(self.agent_name, self.agent_card, self.agent_config)
         thread: AgentThread | None = None
         await task_updater.start_work()
         async for partial in agent.invoke_stream(
