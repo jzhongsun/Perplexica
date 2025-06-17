@@ -49,7 +49,7 @@ def setup_sk_agent_from_card(app: FastAPI,
     app.mount("/" + agent_name, app=a2a_app.build(), name=agent_name)
 
 def create_sk_agent_meta_search(agent_name: str, agent_card: AgentCard, agent_config: Dict[str, Any] = {}) -> Agent:
-    from .meta_search_agent import MetaSearchAgent, MetaSearchAgentConfig
+    from .sk_search_agent import MetaSearchAgent, MetaSearchAgentConfig
     config = MetaSearchAgentConfig(
         search_web=agent_config.get("search_web", True),
         rerank=agent_config.get("rerank", True),

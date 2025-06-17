@@ -1,13 +1,28 @@
 import logging
 import os
-from typing import override, Callable, Awaitable, AsyncIterable, Any, AsyncGenerator, Optional
+from typing import (
+    override,
+    Callable,
+    Awaitable,
+    AsyncIterable,
+    Any,
+    AsyncGenerator,
+    Optional,
+)
+from openai import AsyncOpenAI
 from semantic_kernel.kernel import Kernel, KernelArguments
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
 from semantic_kernel.kernel_pydantic import KernelBaseSettings
 from semantic_kernel.functions import KernelPlugin
-from semantic_kernel.contents import ChatMessageContent, StreamingChatMessageContent, AuthorRole, FunctionCallContent, FunctionResultContent
+from semantic_kernel.contents import (
+    ChatMessageContent,
+    StreamingChatMessageContent,
+    AuthorRole,
+    FunctionCallContent,
+    FunctionResultContent,
+)
 from semantic_kernel.agents import (
     Agent,
     AgentThread,
@@ -21,15 +36,19 @@ from semantic_kernel.utils.telemetry.agent_diagnostics.decorators import (
     trace_agent_invocation,
 )
 from semantic_kernel.prompt_template import PromptTemplateConfig
-from semantic_kernel.agents.chat_completion.chat_completion_agent import ChatHistoryAgentThread
+from semantic_kernel.agents.chat_completion.chat_completion_agent import (
+    ChatHistoryAgentThread,
+)
 from semantic_kernel.agents.chat_completion.chat_completion_agent import ChatHistory
 from pydantic import BaseModel, ConfigDict, Field
-from semantic_kernel.connectors.ai.open_ai.services.open_ai_chat_completion import OpenAIChatCompletion
+from semantic_kernel.connectors.ai.open_ai.services.open_ai_chat_completion import (
+    OpenAIChatCompletion,
+)
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class MetaSearchAgentConfig(BaseModel):
+class MetaSearchAgentConfig(KernelBaseSettings):
     search_web: bool = Field(default=True)
     rerank: bool = Field(default=True)
     summarizer: bool = Field(default=True)
@@ -54,8 +73,11 @@ class MetaSearchAgent(ChatCompletionAgent):
         super().__init__(
             id=id,
             service=OpenAIChatCompletion(
-                api_key=os.getenv("OPENAI_API_KEY"),
                 ai_model_id=os.getenv("OPENAI_MODEL_NAME"),
+                async_client=AsyncOpenAI(
+                    api_key=os.getenv("OPENAI_API_KEY"),
+                    base_url=os.getenv("OPENAI_BASE_URL"),
+                ),
             ),
             instructions=instructions,
         )
@@ -111,7 +133,7 @@ class MetaSearchAgent(ChatCompletionAgent):
         **kwargs: Any,
     ) -> AsyncIterable[AgentResponseItem[StreamingChatMessageContent]]:
         logger.debug(f"[{type(self).__name__}] Invoking {type(self).__name__}.")
-        
+
         thread = await self._ensure_thread_exists_with_messages(
             messages=messages,
             thread=thread,
@@ -132,8 +154,10 @@ class MetaSearchAgent(ChatCompletionAgent):
         kernel = kernel or self.kernel
         arguments = self._merge_arguments(arguments)
 
-        chat_completion_service, settings = await self._get_chat_completion_service_and_settings(
-            kernel=kernel, arguments=arguments
+        chat_completion_service, settings = (
+            await self._get_chat_completion_service_and_settings(
+                kernel=kernel, arguments=arguments
+            )
         )
 
         # If the user hasn't provided a function choice behavior, use the agent's default.
@@ -148,7 +172,9 @@ class MetaSearchAgent(ChatCompletionAgent):
 
         message_count_before_completion = len(agent_chat_history)
 
-        logger.debug(f"[{type(self).__name__}] Invoking {type(chat_completion_service).__name__}.")
+        logger.debug(
+            f"[{type(self).__name__}] Invoking {type(chat_completion_service).__name__}."
+        )
 
         settings.function_choice_behavior = None
         responses: AsyncGenerator[list[StreamingChatMessageContent], Any] = (
@@ -180,7 +206,8 @@ class MetaSearchAgent(ChatCompletionAgent):
                     role == AuthorRole.ASSISTANT
                     and (response.items or response.metadata.get("usage"))
                     and not any(
-                        isinstance(item, (FunctionCallContent, FunctionResultContent)) for item in response.items
+                        isinstance(item, (FunctionCallContent, FunctionResultContent))
+                        for item in response.items
                     )
                 ):
                     yield AgentResponseItem(message=response, thread=thread)
@@ -205,9 +232,12 @@ class MetaSearchAgent(ChatCompletionAgent):
             # them multiple times.
             await thread.on_new_message(
                 ChatMessageContent(
-                    role=role if role else AuthorRole.ASSISTANT, content="".join(response_builder), name=self.name
+                    role=role if role else AuthorRole.ASSISTANT,
+                    content="".join(response_builder),
+                    name=self.name,
                 )
             )
+
     @override
     @classmethod
     async def _from_dict(

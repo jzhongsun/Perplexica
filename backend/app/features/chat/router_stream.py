@@ -1,5 +1,6 @@
 """Chat router module."""
 
+from app.core.ui_message_stream import ErrorUIMessageStreamPart
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 import httpx
@@ -13,7 +14,7 @@ from .service import ChatService
 from .schemas import ChatRequest
 from ...core.ui_messages import UIMessage, TextUIPart
 from ...core.utils.messages import (
-    a2a_message_to_ui_message,
+    a2a_message_to_ui_message_stream_parts,
 )
 from a2a.client import A2AClient
 from a2a.types import (
@@ -26,17 +27,6 @@ from a2a.types import (
 import a2a.types as a2a_types
 
 router = APIRouter(prefix="/chat-stream", tags=["chat"])
-
-
-async def error_event_generator(error_message: str) -> AsyncGenerator[str, None]:
-    error_ui_message = UIMessage(
-        id=str(uuid.uuid4()),
-        parts=[TextUIPart(text=f"Error: {error_message}")],
-        role="assistant",
-        error=True,
-    )
-    yield error_ui_message.model_dump_json()
-
 
 async def resolve_agent_client(request: ChatRequest) -> A2AClient:
     a2a_client = A2AClient(
@@ -81,11 +71,11 @@ async def handle_chat_stream(
         }
         try:
             async for response_item in stream:
-                response_item_ui_message = None
+                response_item_ui_message_parts = None
                 if isinstance(response_item.root, SendStreamingMessageSuccessResponse):
                     logger.info(f"Response item: {response_item.root.result}")
                     if isinstance(response_item.root.result, a2a_types.Message):
-                        response_item_ui_message = a2a_message_to_ui_message(
+                        response_item_ui_message_parts = a2a_message_to_ui_message_stream_parts(
                             response_item.root.result
                         )
                     elif isinstance(response_item.root.result, a2a_types.Task):
@@ -95,7 +85,7 @@ async def handle_chat_stream(
                     ):
                         response_message = response_item.root.result.status.message
                         if response_message is not None:
-                            response_item_ui_message = a2a_message_to_ui_message(
+                            response_item_ui_message_parts = a2a_message_to_ui_message_stream_parts(
                                 response_message
                             )
                     elif isinstance(
@@ -107,28 +97,30 @@ async def handle_chat_stream(
                             f"Unsupported response item type: {type(response_item.root.result)}"
                         )
 
-                if response_item_ui_message is None:
+                if response_item_ui_message_parts is None:
                     continue
-                for part in response_item_ui_message.parts:
+                for part in response_item_ui_message_parts:
                     yield {
                         "id": str(uuid.uuid4()),
                         "event": "message",
-                        "data": json.dumps(part.model_dump(), ensure_ascii=False),
+                        "data": part.model_dump_json(exclude_none=True),
                     }
+
+            yield {
+                "id": str(uuid.uuid4()),
+                "event": "message",
+                "data": json.dumps(
+                    {"type": "finish", "messageId": message_id, "messageMetadata": {}},
+                    ensure_ascii=False,
+                ),
+            }
         except Exception as e:
             logger.error(f"Error in chat stream: {str(e)}")
-            async for error_message in error_event_generator(str(e)):
-                yield error_message
-            return
-
-        yield {
-            "id": str(uuid.uuid4()),
-            "event": "message",
-            "data": json.dumps(
-                {"type": "finish", "messageId": message_id, "messageMetadata": {}},
-                ensure_ascii=False,
-            ),
-        }
+            yield {
+                "id": str(uuid.uuid4()),
+                "event": "message",
+                "data": ErrorUIMessageStreamPart(errorText=str(e))
+            }
 
     return EventSourceResponse(
         event_generator(),
