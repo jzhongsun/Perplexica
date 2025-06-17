@@ -46,10 +46,12 @@ class ChatBase(BaseModel):
 class ChatCreate(ChatBase):
     """Schema for creating a new chat."""
     id: str
+    user_id: str = Field(..., alias="userId")
 
 class ChatResponse(ChatBase):
     """Schema for chat response."""
     id: str
+    user_id: str = Field(..., alias="userId")
     created_at: datetime = Field(..., alias="createdAt")
     messages: List[MessageResponse] = []
 

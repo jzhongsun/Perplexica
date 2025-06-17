@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 
-from app.features.db.router import router as db_router
 from app.features.prompts.router import router as prompts_router
 from app.features.agents.video.router import router as video_router
 from app.features.agents.image.router import router as image_router
@@ -15,7 +14,6 @@ from app.features.discover.router import router as discover_router
 
 router = APIRouter()
 
-router.include_router(db_router)
 router.include_router(prompts_router)
 router.include_router(video_router)
 router.include_router(image_router)

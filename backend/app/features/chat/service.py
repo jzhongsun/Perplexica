@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from app.features.db.service import DatabaseService
+from app.db.service import DatabaseService
 from app.features.providers import get_chat_model, get_embedding_model
 from app.features.files.service import FileService
 from app.features.search import get_search_handler
