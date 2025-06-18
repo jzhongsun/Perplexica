@@ -11,6 +11,7 @@ from app.features.files.router import router as files_router
 from app.features.chat.router import router as chat_router
 from app.features.chat.router_stream import router as chat_stream_router
 from app.features.discover.router import router as discover_router
+from app.features.auth.router import router as auth_router
 
 router = APIRouter()
 
@@ -25,3 +26,10 @@ router.include_router(files_router)
 router.include_router(chat_router) 
 router.include_router(chat_stream_router)
 router.include_router(discover_router)
+
+# Add auth routes
+router.include_router(
+    auth_router,
+    prefix="/auth",
+    tags=["auth"]
+)

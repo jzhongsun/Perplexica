@@ -1,15 +1,30 @@
 """Main application module."""
+
+from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import dotenv
 from app.api.v1.router import router as api_v1_router
-
+from app.db.init_db import init_app_db
 dotenv.load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting up...")
+    await init_app_db()
+    yield
+    logger.info("Shutting down...")
+
 
 app = FastAPI(
     title="Perplexica API",
     description="Backend API for Perplexica chat application",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS

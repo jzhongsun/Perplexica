@@ -92,6 +92,11 @@ class UIMessage(BaseModel):
     role: Literal['system', 'user', 'assistant'] = Field(..., description="Role of the message sender (system/user/assistant)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadata for the message")
     parts: List[UIMessagePart] = Field(..., description="Parts of the message")
+    
+    
+    def content(self) -> str:
+        """Get the content of the message."""
+        return ''.join([part.text for part in self.parts if isinstance(part, TextUIPart)])
 
 def is_tool_ui_part(part: UIMessagePart) -> bool:
     """Check if a message part is a tool part."""

@@ -43,3 +43,6 @@ google-auth-oauthlib>=0.4.0
 # New features
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+
+# Added from the code block
+pydantic[email]

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 class FileInfo(BaseModel):
     """File information schema."""
@@ -57,4 +57,34 @@ class ChatResponse(ChatBase):
 
     class Config:
         from_attributes = True
-        populate_by_name = True 
+        populate_by_name = True
+
+class UserBase(BaseModel):
+    email: EmailStr = Field(..., alias="email")
+    username: str = Field(..., alias="username")
+    full_name: Optional[str] = Field(None, alias="fullName")
+
+class UserCreate(UserBase):
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    user_id: Optional[int] = None
+
+class User(UserBase):
+    id: str
+    is_active: bool = True
+    is_superuser: bool = False
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        from_attributes = True 

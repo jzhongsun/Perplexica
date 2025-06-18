@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.core.config import get_settings
-from app.db.models import DbBase
+from app.db.models import DbUserBase
 
 # Load our configuration
 config = context.config
@@ -21,7 +21,7 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = DbBase.metadata
+target_metadata = DbUserBase.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""

@@ -6,11 +6,12 @@ from .schemas import (
     ChatListResponse,
     ChatHistory
 )
+from app.depends import get_chat_service
 
 router = APIRouter(prefix="/chats", tags=["chat"])
 @router.get("", response_model=ChatListResponse)
 async def list_chats(
-    chat_service: ChatService = Depends(ChatService)
+    chat_service: ChatService = Depends(get_chat_service)
 ) -> ChatListResponse:
     """List all chats."""
     response = await chat_service.list_chats()
@@ -19,7 +20,7 @@ async def list_chats(
 @router.get("/{chat_id}", response_model=ChatHistory)
 async def get_chat(
     chat_id: str,
-    chat_service: ChatService = Depends(ChatService)
+    chat_service: ChatService = Depends(get_chat_service)
 ) -> ChatHistory:
     """Get chat history by ID."""
     return await chat_service.get_chat(chat_id)
@@ -27,7 +28,7 @@ async def get_chat(
 @router.delete("/{chat_id}")
 async def delete_chat(
     chat_id: str,
-    chat_service: ChatService = Depends(ChatService)
+    chat_service: ChatService = Depends(get_chat_service)
 ) -> dict:
     """Delete chat by ID."""
     await chat_service.delete_chat(chat_id)

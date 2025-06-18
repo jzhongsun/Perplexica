@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     LMSTUDIO_API_ENDPOINT: Optional[str] = None
     SEARXNG_API_ENDPOINT: Optional[str] = None
     
+    # JWT settings
+    SECRET_KEY: str = "your-secret-key-here"  # Change this in production!
+    
+    # Google OAuth2 settings
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

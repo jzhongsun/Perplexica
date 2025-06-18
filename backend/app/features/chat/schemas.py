@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any, Literal, Type
 from pydantic import BaseModel, Field, model_validator
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.ui_messages import (
     UIMessage,
     UIMessagePart,
@@ -80,9 +80,9 @@ class Message(BaseModel):
     """Message model."""
     chat_id: str
     message_id: str
-    role: Optional[str] = Field(default="User", description="Role of the message sender (user/assistant)")
+    role: Literal['user', 'assistant'] = Field(..., description="Role of the message sender (system/user/assistant)")
     content: str = Field(..., description="Content of the message")
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default=datetime.now(timezone.utc))
 
 class ChatModel(BaseModel):
     provider: str = Field(..., description="Model provider")
@@ -103,7 +103,7 @@ class ChatRequestOptions(BaseModel):
 
 class ChatRequest(BaseModel):
     """Chat request model."""
-    id: Optional[str] = Field(None, description="Chat ID for continuing conversation")
+    chat_id: Optional[str] = Field(None, description="Chat ID for continuing conversation")
     messages: List[UIMessage] = Field(..., description="List of messages")
     options: Optional[Dict[str, Any]] = Field(default=None)
 

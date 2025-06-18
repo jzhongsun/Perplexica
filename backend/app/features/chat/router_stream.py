@@ -1,82 +1,70 @@
 """Chat router module."""
 
-from app.core.ui_message_stream import ErrorUIMessageStreamPart
-from fastapi import APIRouter, Depends
+from app.core.ui_message_stream import ErrorUIMessageStreamPart, FinishUIMessageStreamPart, StartUIMessageStreamPart
+from app.db.schemas import User
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import httpx
 from sse_starlette.sse import EventSourceResponse
 import uuid
-import json
 from loguru import logger
-from typing import AsyncGenerator
+import traceback
 
 from .service import ChatService
 from .schemas import ChatRequest
-from ...core.ui_messages import UIMessage, TextUIPart
 from ...core.utils.messages import (
     a2a_message_to_ui_message_stream_parts,
 )
 from a2a.client import A2AClient
 from a2a.types import (
-    SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
-    MessageSendParams,
-    TextPart,
-    Role,
 )
 import a2a.types as a2a_types
+from app.depends import get_chat_service, get_current_user
 
 router = APIRouter(prefix="/chat-stream", tags=["chat"])
 
-async def resolve_agent_client(request: ChatRequest) -> A2AClient:
-    a2a_client = A2AClient(
-        httpx_client=httpx.AsyncClient(),
-        url="http://localhost:10010/web_search/",
-    )
-    return a2a_client
-
-
 @router.post("", response_class=EventSourceResponse)
 async def handle_chat_stream(
-    request: ChatRequest, chat_service: ChatService = Depends(ChatService)
+    request: ChatRequest,
+    chat_service: ChatService = Depends(get_chat_service),
+    user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """Create a new chat with streaming response."""
+    
+    chat_id = request.chat_id
+    if chat_id is None or len(chat_id) == 0:
+        chat_id = str(uuid.uuid4())
+        request.chat_id = chat_id
+        chat = await chat_service.create_chat(request)
+    else:
+        chat = await chat_service.get_chat(chat_id)
+        if chat is None:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        
+    for message in request.messages:
+        if message.id is None or len(message.id) == 0:
+            message.id = str(uuid.uuid4())
 
     async def event_generator():
-        message_id = str(uuid.uuid4())
-        agent_client = await resolve_agent_client(request)
-        stream = agent_client.send_message_streaming(
-            request=SendStreamingMessageRequest(
-                id=str(uuid.uuid4()),
-                params=MessageSendParams(
-                    message=a2a_types.Message(
-                        messageId=message_id,
-                        role=Role.user,
-                        parts=[
-                            TextPart(text=message.parts[0].text)
-                            for message in request.messages
-                        ],
-                    ),
-                    metadata={},
-                ),
-            )
-        )
-        yield {
-            "id": str(uuid.uuid4()),
-            "event": "message",
-            "data": json.dumps(
-                {"type": "start", "messageId": message_id, "messageMetadata": {}},
-                ensure_ascii=False,
-            ),
-        }
+        input_message = request.messages[-1]    
+        stream = chat_service.chat_stream(chat_id, request.messages, request.options)
         try:
+            yield {
+                "id": str(uuid.uuid4()),
+                "event": "message",
+                "data": StartUIMessageStreamPart(messageId=input_message.id).model_dump_json(exclude_none=True),
+            }
+            
             async for response_item in stream:
                 response_item_ui_message_parts = None
                 if isinstance(response_item.root, SendStreamingMessageSuccessResponse):
-                    logger.info(f"Response item: {response_item.root.result}")
+                    logger.info(f"Response item: {type(response_item.root.result)} - {response_item.root.result}")
                     if isinstance(response_item.root.result, a2a_types.Message):
-                        response_item_ui_message_parts = a2a_message_to_ui_message_stream_parts(
-                            response_item.root.result
+                        response_item_ui_message_parts = (
+                            a2a_message_to_ui_message_stream_parts(
+                                response_item.root.result
+                            )
                         )
                     elif isinstance(response_item.root.result, a2a_types.Task):
                         pass
@@ -85,8 +73,8 @@ async def handle_chat_stream(
                     ):
                         response_message = response_item.root.result.status.message
                         if response_message is not None:
-                            response_item_ui_message_parts = a2a_message_to_ui_message_stream_parts(
-                                response_message
+                            response_item_ui_message_parts = (
+                                a2a_message_to_ui_message_stream_parts(response_message)
                             )
                     elif isinstance(
                         response_item.root.result, a2a_types.TaskArtifactUpdateEvent
@@ -109,17 +97,15 @@ async def handle_chat_stream(
             yield {
                 "id": str(uuid.uuid4()),
                 "event": "message",
-                "data": json.dumps(
-                    {"type": "finish", "messageId": message_id, "messageMetadata": {}},
-                    ensure_ascii=False,
-                ),
+                "data": FinishUIMessageStreamPart().model_dump_json(exclude_none=True),
             }
         except Exception as e:
-            logger.error(f"Error in chat stream: {str(e)}")
+            error_msg = f"Error in chat stream: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+            logger.error(error_msg)
             yield {
                 "id": str(uuid.uuid4()),
                 "event": "message",
-                "data": ErrorUIMessageStreamPart(errorText=str(e))
+                "data": ErrorUIMessageStreamPart(errorText=str(e)).model_dump_json(exclude_none=True),
             }
 
     return EventSourceResponse(
