@@ -1,4 +1,5 @@
 import uuid
+import traceback
 from typing import Any, Callable, Dict
 
 from a2a.server.tasks import TaskUpdater
@@ -83,6 +84,7 @@ class SemanticKernelAgentExecutor(AgentExecutor):
         task_updater = TaskUpdater(event_queue, task.id, task.contextId)
         
         agent = self.agent_builder(self.agent_name, self.agent_card, self.agent_config)
+        logger.info(f"Agent created: {agent} - type: {type(agent)}")
         thread: AgentThread | None = None
         
         try:            
@@ -97,9 +99,8 @@ class SemanticKernelAgentExecutor(AgentExecutor):
             response_message_chunks: list[StreamingChatMessageContent] = []
             previous_message_id = None
             async for partial in stream:
-                thread = response_item.thread
-
                 response_item : AgentResponseItem[StreamingChatMessageContent] = partial
+                thread = response_item.thread
                 response_message : StreamingChatMessageContent = response_item.message                
                 if any(isinstance(i, StreamingTextContent) for i in response_message.items):
                     response_message_chunks.append(response_message)
@@ -114,7 +115,7 @@ class SemanticKernelAgentExecutor(AgentExecutor):
                 
             await task_updater.complete()
         except Exception as e:
-            logger.error(f"Error in agent execution: {e}")
+            logger.error(f"Error in agent execution: {e}, {traceback.format_exc()}")
             await task_updater.failed()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
