@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import dotenv
 from app.api.v1.router import router as api_v1_router
 from app.db.init_db import init_app_db
+from app.features.chat.router_stream import router as chat_stream_router
+
 dotenv.load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -38,3 +40,4 @@ app.add_middleware(
 
 # Include API v1 router
 app.include_router(api_v1_router, prefix="/api/v1") 
+app.include_router(chat_stream_router, prefix="/api") 

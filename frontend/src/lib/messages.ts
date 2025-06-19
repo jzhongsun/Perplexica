@@ -2,12 +2,24 @@ import { UIMessage } from "@ai-sdk/react";
 import { Message } from "@/components/ChatWindow";
 import { randomBytes } from "crypto";
 import { Document } from "@langchain/core/documents";
+
+export const extractUIMessageTextContent = (uiMessage: UIMessage): string => {
+    let content = '';
+    for (const part of uiMessage.parts) {
+        if (part.type === 'text') {
+            content += part.text;
+        }
+    }
+    return content;
+}
+
 export const convertUIMessageToMessage = (uiMessage: UIMessage): Message => {
+    console.log('convertUIMessageToMessage', uiMessage);
     let content = '';
     const sources: Document[] = [];
     if (!uiMessage || !uiMessage.parts) {
         return {
-            messageId: uiMessage.id || randomBytes(7).toString('hex'),
+            messageId: uiMessage ? (uiMessage.id || randomBytes(7).toString('hex')) : randomBytes(7).toString('hex'),
             chatId: '', // 需要从上下文获取
             createdAt: new Date(),
             content: '',

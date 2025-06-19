@@ -1,3 +1,4 @@
+import json
 from typing import Any, AsyncGenerator, Dict
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
@@ -32,7 +33,8 @@ def get_user_engine(user_id: str):
         user_engines[user_id] = create_async_engine(
             db_url,
             poolclass=NullPool,
-            echo=settings.SQL_DEBUG
+            echo=settings.SQL_DEBUG,
+            json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
         )
     return user_engines[user_id]
 
@@ -44,7 +46,8 @@ def get_app_engine():
         app_engine = create_async_engine(
             db_url,
             poolclass=NullPool,
-            echo=settings.SQL_DEBUG
+            echo=settings.SQL_DEBUG,
+            json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
         )
     return app_engine
 

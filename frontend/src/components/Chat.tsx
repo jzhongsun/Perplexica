@@ -5,11 +5,12 @@ import MessageInput from './MessageInput';
 import { File } from './ChatWindow';
 import MessageBox from './MessageBox';
 import MessageBoxLoading from './MessageBoxLoading';
-import { UIMessage } from '@ai-sdk/react';
+import { UseChatHelper, UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
 
 const Chat = ({
   loading,
+  chat,
   messages,
   sendMessage,
   messageAppeared,
@@ -19,6 +20,7 @@ const Chat = ({
   files,
   setFiles,
 }: {
+  chat: UseChatHelper;
   messages: UIMessage[];
   sendMessage: (message: string) => void;
   loading: boolean;

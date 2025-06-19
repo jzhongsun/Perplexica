@@ -9,8 +9,8 @@ import {
   Transition,
 } from '@headlessui/react';
 import jsPDF from 'jspdf';
-import { UIMessage } from '@ai-sdk/react';
-import { convertUIMessageToMessage } from '@/lib/messages';
+import { UIMessage, UseChatHelper } from '@ai-sdk/react';
+import { convertUIMessageToMessage, extractUIMessageTextContent } from '@/lib/messages';
 
 const downloadFile = (filename: string, content: string, type: string) => {
   const blob = new Blob([content], { type });
@@ -122,42 +122,43 @@ const exportAsPDF = (uiMessages: UIMessage[], title: string) => {
 };
 
 const Navbar = ({
-  chatId,
-  messages,
+  chat,
 }: {
-  messages: UIMessage[];
-  chatId: string;
+  chat: UseChatHelper;
 }) => {
   const [title, setTitle] = useState<string>('');
   const [timeAgo, setTimeAgo] = useState<string>('');
 
   useEffect(() => {
+    const messages = chat.messages;
     if (messages.length > 0) {
-      const message = convertUIMessageToMessage(messages[0]);
+      const uiMessage = messages[0];
+      const uiMessageContent = extractUIMessageTextContent(uiMessage);
       const newTitle =
-        message.content.length > 20
-          ? `${message.content.substring(0, 20).trim()}...`
-          : message.content;
+        uiMessageContent.length > 20
+          ? `${uiMessageContent.substring(0, 20).trim()}...`
+          : uiMessageContent;
       setTitle(newTitle);
       const newTimeAgo = formatTimeDifference(
         new Date(),
-        message.createdAt,
+        new Date((uiMessage.metadata as any)?.createdAt as string),
       );
       setTimeAgo(newTimeAgo);
     }
-  }, [messages]);
+  }, [chat]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
+      const messages = chat.messages;
       if (messages.length > 0) {
-        const message = convertUIMessageToMessage(messages[0]);
+        const uiMessage = messages[0];
         const newTimeAgo = formatTimeDifference(
           new Date(),
-          message.createdAt,
+          new Date((uiMessage.metadata as any)?.createdAt as string),
         );
         setTimeAgo(newTimeAgo);
       }
-    }, 1000);
+    }, 5_000);
 
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,14 +196,14 @@ const Navbar = ({
               <div className="flex flex-col py-3 px-3 gap-2">
                 <button
                   className="flex items-center gap-2 px-4 py-2 text-left hover:bg-light-secondary dark:hover:bg-dark-secondary transition-colors text-black dark:text-white rounded-lg font-medium"
-                  onClick={() => exportAsMarkdown(messages, title || '')}
+                  onClick={() => exportAsMarkdown(chat.messages, title || '')}
                 >
                   <FileText size={17} className="text-[#24A0ED]" />
                   Export as Markdown
                 </button>
                 <button
                   className="flex items-center gap-2 px-4 py-2 text-left hover:bg-light-secondary dark:hover:bg-dark-secondary transition-colors text-black dark:text-white rounded-lg font-medium"
-                  onClick={() => exportAsPDF(messages, title || '')}
+                  onClick={() => exportAsPDF(chat.messages, title || '')}
                 >
                   <FileDown size={17} className="text-[#24A0ED]" />
                   Export as PDF
@@ -211,7 +212,7 @@ const Navbar = ({
             </PopoverPanel>
           </Transition>
         </Popover>
-        <DeleteChat redirect chatId={chatId} chats={[]} setChats={() => {}} />
+        <DeleteChat redirect chatId={chat.id} chats={[]} setChats={() => {}} />
       </div>
     </div>
   );

@@ -48,7 +48,7 @@ const MessageBox = ({
 }) => {
   const { t } = useTranslation();
   const message = convertUIMessageToMessage(uiMessage);
-  const lastUserMessage = uiMessage.role === 'assistant' ? convertUIMessageToMessage(history[messageIndex - 1]) : message;
+  // const lastUserMessage = uiMessage.role === 'assistant' ? convertUIMessageToMessage(history[messageIndex - 1]) : message;
   const [parsedMessage, setParsedMessage] = useState(message.content);
   const [speechMessage, setSpeechMessage] = useState(message.content);
 
@@ -248,7 +248,7 @@ const MessageBox = ({
             </div>
           </div>
           <div className="lg:sticky lg:top-20 flex flex-col items-center space-y-3 w-full lg:w-3/12 z-30 h-full pb-4">
-            <SearchImages
+            {/* <SearchImages
               query={lastUserMessage.content}
               chatHistory={history.slice(0, messageIndex - 1)}
               messageId={message.messageId}
@@ -257,7 +257,7 @@ const MessageBox = ({
               chatHistory={history.slice(0, messageIndex - 1)}
               query={lastUserMessage.content}
               messageId={message.messageId}
-            />
+            /> */}
           </div>
         </div>
       )}

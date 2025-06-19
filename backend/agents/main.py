@@ -85,7 +85,7 @@ def set_up_metrics():
 
 
 # This must be done before any other telemetry calls
-set_up_logging()
+# set_up_logging()
 set_up_tracing()
 set_up_metrics()
 

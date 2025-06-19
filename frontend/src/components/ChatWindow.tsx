@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Document } from '@langchain/core/documents';
 import Navbar from './Navbar';
 import Chat from './Chat';
@@ -12,9 +12,9 @@ import { getSuggestions } from '@/lib/actions';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
 import NextError from 'next/error';
-import { UIMessage } from '@ai-sdk/react';
+import { UIMessage } from 'ai';
 import { TextUIPart } from 'ai';
-import { useChat, Chat as UiChat } from '@ai-sdk/react';
+import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
 
@@ -127,12 +127,16 @@ const ChatWindow = ({ id }: { id?: string }) => {
     api: 'http://localhost:8000/api/v1/chat-stream'
   });
 
-  const chat = new UiChat({
+  // const chat = new UiChat({
+  //   id: chatId!,
+  //   transport: transport,
+  // });
+
+  const chatHelper = useChat({
     id: chatId!,
     transport: transport,
+    experimental_throttle: 100
   });
-
-  const chatHelper = useChat({ chat: chat });
 
   useEffect(() => {
     checkConfig(
@@ -145,8 +149,8 @@ const ChatWindow = ({ id }: { id?: string }) => {
 
   const [loading, setLoading] = useState(false);
 
-  const [chatHistory, setChatHistory] = useState<UIMessage[]>([]);
-  const [messages, setMessages] = useState<UIMessage[]>([]);
+  // const [chatHistory, setChatHistory] = useState<UIMessage[]>([]);
+  // const [messages, setMessages] = useState<UIMessage[]>([]);
 
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
@@ -163,17 +167,17 @@ const ChatWindow = ({ id }: { id?: string }) => {
       chatId &&
       !newChatCreated &&
       !isMessagesLoaded &&
-      messages.length === 0
+      chatHelper.messages.length === 0
     ) {
       loadMessages(
         chatId,
         (messages) => {
-          setMessages(messages as UIMessage[]);
+          // setMessages(messages as UIMessage[]);
           chatHelper.setMessages(messages as UIMessage[]);
         },
         setIsMessagesLoaded,
         (history) => {
-          setChatHistory(history as UIMessage[]);
+          // setChatHistory(history as UIMessage[]);
           // chatHelper.setMessages(history as UIMessage[]);
         },
         setFocusMode,
@@ -193,8 +197,8 @@ const ChatWindow = ({ id }: { id?: string }) => {
   const messagesRef = useRef<UIMessage[]>([]);
 
   useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+    messagesRef.current = chatHelper.messages;
+  }, [chatHelper]);
 
   useEffect(() => {
     if (isMessagesLoaded && isConfigReady) {
@@ -354,19 +358,18 @@ const ChatWindow = ({ id }: { id?: string }) => {
       }
     });
   };
-
   const rewrite = (messageId: string) => {
-    const index = messages.findIndex((msg) => msg.id === messageId);
+    const index = chatHelper.messages.findIndex((msg) => msg.id === messageId);
 
     if (index === -1) return;
 
-    const message = messages[index - 1];
+    const message = chatHelper.messages[index - 1];
 
-    setMessages((prev) => {
-      return [...prev.slice(0, messages.length > 2 ? index - 1 : 0)];
+    chatHelper.setMessages((prev) => {
+      return [...prev.slice(0, chatHelper.messages.length > 2 ? index - 1 : 0)];
     });
-    setChatHistory((prev) => {
-      return [...prev.slice(0, messages.length > 2 ? index - 1 : 0)];
+    chatHelper.setMessages((prev) => {
+      return [...prev.slice(0, chatHelper.messages.length > 2 ? index - 1 : 0)];
     });
 
     sendMessage((message.parts[0] as TextUIPart)?.text, message.id);
@@ -403,10 +406,11 @@ const ChatWindow = ({ id }: { id?: string }) => {
       <div>
         {chatHelper.messages.length > 0 ? (
           <>
-            <Navbar chatId={chatHelper.id!} messages={chatHelper.messages} />
+            <Navbar chat={chatHelper} />
             <Chat
               loading={chatHelper.status === 'streaming' || chatHelper.status === 'submitted'}
               messages={chatHelper.messages}
+              chat={chatHelper}
               sendMessage={sendMessage}
               messageAppeared={chatHelper.status === 'streaming' || chatHelper.status === 'ready'}
               rewrite={rewrite}
@@ -418,7 +422,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
           </>
         ) : (
           <EmptyChat
-            sendMessage={sendMessage}
+            sendMessage={(message: string) => sendMessage(message)}
             focusMode={focusMode}
             setFocusMode={setFocusMode}
             optimizationMode={optimizationMode}
@@ -454,3 +458,4 @@ const ChatWindow = ({ id }: { id?: string }) => {
 };
 
 export default ChatWindow;
+

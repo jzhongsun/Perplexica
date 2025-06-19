@@ -25,13 +25,14 @@ def sk_item_to_a2a_part(item: CMC_ITEM_TYPES) -> Part:
     if isinstance(item, TextContent):
         return Part(root=TextPart(text=item.text))
     else:
-        raise ValueError(f"Unsupported item type: {type(item)}")
+        logger.warning(f"Unsupported item type: {type(item)}")
+        return Part(root=TextPart(text=f"Unsupported item type: {type(item)}: {item.model_dump_json(exclude_none=True)}"))
 
 def sk_message_to_a2a_message(message: StreamingChatMessageContent, message_id: str | None = None, contextId: str | None = None, taskId: str | None = None) -> tuple[Message, str]:
     if message_id is None:
         message_id = message.metadata["id"] if "id" in message.metadata else str(uuid.uuid4())
     else:
-        if message_id != message.metadata["id"]:
+        if message.metadata and "id" in message.metadata and message_id != message.metadata["id"]:
             logger.warning(f"Message ID mismatch: {message_id} != {message.metadata['id']}")
     
     return (Message(
