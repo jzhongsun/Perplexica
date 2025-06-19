@@ -76,10 +76,27 @@
     "loading": "正在加载设置..."
   },
 
+  "profile": {
+    "title": "个人资料",
+    "fullName": "姓名",
+    "fullNamePlaceholder": "请输入您的姓名",
+    "username": "用户名",
+    "usernamePlaceholder": "请输入您的用户名",
+    "email": "电子邮箱",
+    "emailNote": "电子邮箱不可更改",
+    "uploading": "正在上传头像...",
+    "saving": "正在保存更改...",
+    "save": "保存更改",
+    "updateSuccess": "个人资料更新成功",
+    "updateError": "更新个人资料失败"
+  },
+
   "nav": {
     "home": "首页",
     "discover": "发现",
     "library": "资料库",
-    "settings": "设置"
+    "settings": "设置",
+    "profile": "个人资料",
+    "logout": "退出登录"
   }
 } 

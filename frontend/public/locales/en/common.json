@@ -76,10 +76,27 @@
     "loading": "Loading settings..."
   },
 
+  "profile": {
+    "title": "Profile",
+    "fullName": "Full Name",
+    "fullNamePlaceholder": "Enter your full name",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "email": "Email Address",
+    "emailNote": "Email address cannot be changed",
+    "uploading": "Uploading avatar...",
+    "saving": "Saving changes...",
+    "save": "Save Changes",
+    "updateSuccess": "Profile updated successfully",
+    "updateError": "Failed to update profile"
+  },
+
   "nav": {
     "home": "Home",
     "discover": "Discover",
     "library": "Library",
-    "settings": "Settings"
+    "settings": "Settings",
+    "profile": "Profile",
+    "logout": "Log Out"
   }
 } 

@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import { Montserrat } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
-import TopNav from '@/components/Sidebar';
 import { Toaster } from 'sonner';
 import ThemeProvider from '@/components/theme/Provider';
 import I18nProvider from '@/components/I18nProvider';
+import TopNav from '@/components/Sidebar';
 
 const montserrat = Montserrat({
   weight: ['300', '400', '500', '700'],
@@ -25,7 +25,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // We'll use browser's language detection instead
   return (
     <html className="h-full" suppressHydrationWarning>
       <body className={cn('h-full', montserrat.className)}>
@@ -46,4 +45,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
+} 

@@ -1,5 +1,6 @@
 """Chat router module."""
 
+import datetime
 from app.core.ui_message_stream import ErrorUIMessageStreamPart, FinishUIMessageStreamPart, StartUIMessageStreamPart
 from app.db.schemas import User
 from fastapi import APIRouter, Depends, HTTPException
@@ -45,17 +46,15 @@ async def handle_chat_stream(
     for message in request.messages:
         if message.id is None or len(message.id) == 0:
             message.id = str(uuid.uuid4())
+        if message.metadata is None:
+            message.metadata = {}
+        if "createdAt" not in message.metadata:
+            message.metadata["createdAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     async def event_generator():
-        input_message = request.messages[-1]    
         stream = chat_service.chat_stream(chat_id, request.messages, request.options)
         try:
-            yield {
-                "id": str(uuid.uuid4()),
-                "event": "message",
-                "data": StartUIMessageStreamPart(messageId=input_message.id).model_dump_json(exclude_none=True),
-            }
-            
+            last_message_id = None            
             async for response_item in stream:
                 response_item_ui_message_parts = None
                 if isinstance(response_item.root, SendStreamingMessageSuccessResponse):
@@ -73,6 +72,26 @@ async def handle_chat_stream(
                     ):
                         response_message = response_item.root.result.status.message
                         if response_message is not None:
+                            response_message_id = response_message.messageId
+                            if last_message_id is None:
+                                last_message_id = response_message_id
+                                yield {
+                                    "id": str(uuid.uuid4()),
+                                    "event": "message",
+                                    "data": StartUIMessageStreamPart(messageId=response_message_id).model_dump_json(exclude_none=True),
+                                }
+                            elif last_message_id != response_message_id:
+                                last_message_id = response_message_id
+                                yield {
+                                    "id": str(uuid.uuid4()),
+                                    "event": "message",
+                                    "data": FinishUIMessageStreamPart().model_dump_json(exclude_none=True),
+                                }
+                                yield {
+                                    "id": str(uuid.uuid4()),
+                                    "event": "message",
+                                    "data": StartUIMessageStreamPart(messageId=response_message_id).model_dump_json(exclude_none=True),
+                                }
                             response_item_ui_message_parts = (
                                 a2a_message_to_ui_message_stream_parts(response_message)
                             )
@@ -93,12 +112,12 @@ async def handle_chat_stream(
                         "event": "message",
                         "data": part.model_dump_json(exclude_none=True),
                     }
-
-            yield {
-                "id": str(uuid.uuid4()),
-                "event": "message",
-                "data": FinishUIMessageStreamPart().model_dump_json(exclude_none=True),
-            }
+            if last_message_id is not None:
+                yield {
+                    "id": str(uuid.uuid4()),
+                    "event": "message",
+                    "data": FinishUIMessageStreamPart().model_dump_json(exclude_none=True),
+                }
         except Exception as e:
             error_msg = f"Error in chat stream: {str(e)}\nTraceback:\n{traceback.format_exc()}"
             logger.error(error_msg)

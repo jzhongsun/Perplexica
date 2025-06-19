@@ -76,10 +76,27 @@
     "loading": "正在載入設定..."
   },
 
+  "profile": {
+    "title": "個人資料",
+    "fullName": "姓名",
+    "fullNamePlaceholder": "請輸入您的姓名",
+    "username": "用戶名",
+    "usernamePlaceholder": "請輸入您的用戶名",
+    "email": "電郵地址",
+    "emailNote": "電郵地址不可更改",
+    "uploading": "正在上傳頭像...",
+    "saving": "正在保存更改...",
+    "save": "保存更改",
+    "updateSuccess": "個人資料更新成功",
+    "updateError": "更新個人資料失敗"
+  },
+
   "nav": {
     "home": "首頁",
     "discover": "發現",
     "library": "資料庫",
-    "settings": "設定"
+    "settings": "設定",
+    "profile": "個人資料",
+    "logout": "登出"
   }
 } 

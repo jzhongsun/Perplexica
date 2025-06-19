@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import logging
 import os
 from typing import (
@@ -10,6 +11,7 @@ from typing import (
     Any,
     Annotated,
     TypedDict,
+    Optional,
 )
 from urllib.parse import urljoin
 from openai import AsyncOpenAI
@@ -35,7 +37,7 @@ from semantic_kernel.utils.telemetry.agent_diagnostics.decorators import (
     trace_agent_get_response,
     trace_agent_invocation,
 )
-from pydantic import Field
+from pydantic import BaseModel, Field
 from semantic_kernel.connectors.ai.open_ai.services.open_ai_chat_completion import (
     OpenAIChatCompletion,
 )
@@ -44,9 +46,18 @@ from semantic_kernel.functions import kernel_function
 from markitdown._stream_info import StreamInfo
 from semantic_kernel.contents import ChatHistory
 from semantic_kernel.contents import AuthorRole
+from semantic_kernel.data import TextSearchResult
+from agents.utils import parse_json_response
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+class DocumentSearchResult(TypedDict):
+    content: str
+    metadata: dict[str, str]
+
+class DocumentSearchResults(TypedDict):
+    query: str
+    docs: list[DocumentSearchResult]
 
 class MetaSearchAgentConfig(KernelBaseSettings):
     search_web: bool = Field(default=True)
@@ -69,7 +80,7 @@ class MetaSearchResult(TypedDict):
 
 
 class MetaSearchPlugin:
-    async def fetch_content_of_url(self, url: str) -> str:
+    async def fetch_content_of_url(self, url: str, query: str | None = None, title: str | None = None) -> dict[str, str | bool | None]:
         from playwright.async_api import async_playwright
         from markitdown import MarkItDown
         from markitdown.converters import HtmlConverter
@@ -101,7 +112,9 @@ class MetaSearchPlugin:
 
                 # Wait for content to load
                 await page.wait_for_load_state("networkidle", timeout=30000)
-                
+                if title is None:
+                    title = await page.title()
+                    
                 # Get the main content
                 html_content = await page.evaluate("document.body.innerHTML;")
                 
@@ -112,17 +125,33 @@ class MetaSearchPlugin:
                         base_url=os.getenv("OPENAI_BASE_URL"),
                     ),
                 )
-                markdown = await chat_completion_service.get_chat_message_content(
-                    chat_history=ChatHistory(
-                        messages=[
-                            ChatMessageContent(role=AuthorRole.USER, content=html_content),
-                        ],
-                        system_message="You are a helpful assistant that converts HTML to markdown.",
-                    ),
-                    settings=chat_completion_service.instantiate_prompt_execution_settings(temperature=0.0),
+                system_message = "You are a helpful assistant that converts HTML to markdown."
+                if query is not None:
+                    system_message += f"\n\nPlease extract the main content from the HTML that is relevant to this query: {query}"
+                if title is not None:
+                    system_message += f"\n\nOr extract content related to the page title: {title}"
+                
+                class MarkdownContextResult(BaseModel):
+                    success: bool = Field(description="Whether the markdown content is successfully extracted")
+                    failed_reason: Optional[str] = Field(description="The reason why the markdown content is not successfully extracted")
+                    markdown_content: Optional[str] = Field(description="The markdown content of the page")
+                    
+                    
+                system_message += f"\n\n ### Output Format \n\n Must return the content in json format. The json schema is: {json.dumps(MarkdownContextResult.model_json_schema(), indent=2)}"
+                    
+                markdown_content = await chat_completion_service.get_chat_message_content(
+                    chat_history=ChatHistory(messages=[ChatMessageContent(role=AuthorRole.USER, content=html_content)]),
+                    system_message=system_message,
+                    settings=chat_completion_service.instantiate_prompt_execution_settings(temperature=0.0, response_format="json_object"),
                 )
-                logger.info(f"converted markdown: {markdown.content}")
-                return markdown.content
+                logger.info(f"converted markdown: {markdown_content}")
+                json_dict = parse_json_response(markdown_content.content)
+                if json_dict is not None:
+                    markdown_content_result = MarkdownContextResult.model_validate(json_dict)
+                    if markdown_content_result:
+                        return markdown_content_result.model_dump()
+                return {"success": False, "content": None, "failed_reason": "Failed to extract markdown content"}
+
                 # Convert to markdown with proper options
                 markdown_converter = HtmlConverter()
                 markdown_result = markdown_converter.convert_string(html_content, url=url)
@@ -131,7 +160,7 @@ class MetaSearchPlugin:
 
             except Exception as e:
                 logger.error(f"Error fetching content from {url}: {str(e)}")
-                return f"Error fetching content: {str(e)}"
+                return {"success": False, "content": None, "failed_reason": f"Error fetching content: {str(e)}"}
                 
             finally:
                 if browser:
@@ -168,12 +197,20 @@ class MetaSearchPlugin:
             fetch_tasks = {}
             for r in results:
                 fetch_tasks[r["url"]] = {
-                    "task": self.fetch_content_of_url(r["url"]),
+                    "task": self.fetch_content_of_url(r["url"], query=query, title=r["title"]),
                     "title": r["title"],
                     "url": r["url"],
                 }
             for item in fetch_tasks.values():
-                item["content"] = await item["task"]
+                task_result = await item["task"]
+
+                item["success"] = task_result["success"]
+                if task_result["success"]:
+                    item["content"] = task_result["content"]
+                else:
+                    item["content"] = None
+                    item["failed_reason"] = task_result["failed_reason"]
+
             logger.info(f"searxng_web_search: {data}")
             
             return MetaSearchResult(
