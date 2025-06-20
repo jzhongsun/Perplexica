@@ -1,17 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
-export interface User {
-  id: string;
-  email: string;
-  username: string;
-  fullName?: string;
-  avatar?: string;  // URL to user's avatar image
-  isActive: boolean;
-  isSuperuser: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import { api } from '@/lib/api';
+import type { User } from '@/lib/api';
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
@@ -21,13 +11,8 @@ export function useUser() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          setUser(null);
-        }
+        const userData = await api.auth.getMe();
+        setUser(userData);
       } catch (error) {
         console.error('Failed to load user:', error);
         setUser(null);
@@ -39,31 +24,45 @@ export function useUser() {
     loadUser();
   }, []);
 
+  const login = async (email: string, password: string) => {
+    try {
+      const userData = await api.auth.login(email, password);
+      setUser(userData);
+      router.push('/');
+    } catch (error) {
+      console.error('Failed to login:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        // Clear user state
-        setUser(null);
-        // Redirect to home page
-        router.push('/');
-        // Force reload to clear all state
-        window.location.reload();
-      } else {
-        throw new Error('Logout failed');
-      }
+      await api.auth.logout();
+      setUser(null);
+      router.push('/');
     } catch (error) {
       console.error('Failed to logout:', error);
+      throw error;
+    }
+  };
+
+  const register = async (data: { email: string; password: string; name: string }) => {
+    try {
+      const userData = await api.auth.register(data);
+      setUser(userData);
+      router.push('/');
+    } catch (error) {
+      console.error('Failed to register:', error);
+      throw error;
     }
   };
 
   return {
     user,
     loading,
+    login,
     logout,
+    register,
     isAuthenticated: !!user,
   };
 } 

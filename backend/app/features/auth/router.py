@@ -78,7 +78,9 @@ async def login(
 
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user 
+    from app.depends import get_current_user as get_current_user_depends
+    print(get_current_user_depends)
+    return await get_current_user_depends() 
 
 @router.get("/google/login")
 async def google_login():
