@@ -67,12 +67,11 @@ const Page = () => {
       </svg>
     </div>
   ) : (
-    <TopNav>
+    <TopNav
+      icon={<Search className="w-5 h-5" />}
+      title="Discover"
+    >
       <div className="flex flex-col pt-4">
-        <div className="flex items-center">
-          <Search />
-          <h1 className="text-3xl font-medium p-2">Discover</h1>
-        </div>
         <hr className="border-t border-[#2B2C2C] my-4 w-full" />
       </div>
 

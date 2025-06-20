@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import crypto from 'crypto';
 import TopNav from '@/components/TopNav';
 import { useChatContext } from '@/lib/context/ChatContext';
+import { Brain, Sparkles } from 'lucide-react';
 
 const Home = () => {
   const router = useRouter();
@@ -38,7 +39,15 @@ const Home = () => {
     <div>
       <MetadataProvider />
       <Suspense>
-        <TopNav>
+        <TopNav
+          icon={
+            <div className="flex items-center">
+              {/* <Brain className="w-5 h-5 text-blue-500" /> */}
+              <Sparkles className="w-5 h-5 text-yellow-500" />
+            </div>
+          }
+          title="Danus - Chat with the internet"
+        >
           <EmptyChat
             sendMessage={handleSendMessage}
             focusMode={focusMode}

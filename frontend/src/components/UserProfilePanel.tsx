@@ -17,8 +17,7 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
   const [savingStates, setSavingStates] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editedUser, setEditedUser] = useState({
-    fullName: user?.fullName || '',
-    username: user?.username || '',
+    name: user?.name || '',
   });
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,32 +149,16 @@ export function UserProfilePanel({ isOpen, onClose }: UserProfilePanelProps) {
                 <div className="space-y-6">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-black/70 dark:text-white/70">
-                      {t('profile.fullName')}
+                      {t('profile.name')}
                     </label>
                     <div className="relative">
                       <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-black/40 dark:text-white/40" />
                       <input
                         type="text"
-                        value={editedUser.fullName}
-                        onChange={(e) => setEditedUser(prev => ({ ...prev, fullName: e.target.value }))}
+                        value={editedUser.name}
+                        onChange={(e) => setEditedUser(prev => ({ ...prev, name: e.target.value }))}
                         className="w-full pl-10 pr-4 py-2 bg-light-secondary dark:bg-dark-secondary rounded-lg border border-light-200 dark:border-dark-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder={t('profile.fullNamePlaceholder')}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-black/70 dark:text-white/70">
-                      {t('profile.username')}
-                    </label>
-                    <div className="relative">
-                      <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-black/40 dark:text-white/40" />
-                      <input
-                        type="text"
-                        value={editedUser.username}
-                        onChange={(e) => setEditedUser(prev => ({ ...prev, username: e.target.value }))}
-                        className="w-full pl-10 pr-4 py-2 bg-light-secondary dark:bg-dark-secondary rounded-lg border border-light-200 dark:border-dark-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder={t('profile.usernamePlaceholder')}
+                        placeholder={t('profile.namePlaceholder')}
                       />
                     </div>
                   </div>

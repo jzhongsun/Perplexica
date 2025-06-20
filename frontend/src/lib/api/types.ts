@@ -5,6 +5,8 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  fullName?: string;
+  username?: string;
 }
 
 export interface Chat {

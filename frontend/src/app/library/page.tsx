@@ -58,12 +58,11 @@ const Page = () => {
       </svg>
     </div>
   ) : (
-    <TopNav>
+    <TopNav
+      icon={<BookOpenText className="w-5 h-5" />}
+      title="Library"
+    >
       <div className="flex flex-col pt-4">
-        <div className="flex items-center">
-          <BookOpenText />
-          <h1 className="text-3xl font-medium p-2">Library</h1>
-        </div>
         <hr className="border-t border-[#2B2C2C] my-4 w-full" />
       </div>
       {chats.length === 0 && (

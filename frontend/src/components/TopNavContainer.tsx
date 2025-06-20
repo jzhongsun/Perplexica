@@ -21,9 +21,10 @@ import { UserProfilePanel } from './UserProfilePanel';
 export interface TopNavContainerProps {
   children: ReactNode;
   leftContent?: ReactNode;
+  headerContent?: ReactNode;
 }
 
-export const TopNavContainer = ({ children, leftContent }: TopNavContainerProps) => {
+export const TopNavContainer = ({ children, leftContent, headerContent }: TopNavContainerProps) => {
   const { t } = useTranslation();
   const { user, loading, logout } = useUser();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -34,9 +35,11 @@ export const TopNavContainer = ({ children, leftContent }: TopNavContainerProps)
       {/* Desktop Navigation */}
       <div className="hidden md:fixed md:top-0 md:left-0 md:right-0 md:z-50 md:flex md:flex-row">
         <div className="w-full h-12 flex flex-row items-center justify-between px-4 bg-transparent backdrop-blur-sm border-b border-black/5 dark:border-white/5">
-          <Link href="/" aria-label={t('nav.home')}>
-            <SquarePen className="cursor-pointer w-5 h-5" />
-          </Link>
+          {headerContent || (
+            <Link href="/" aria-label={t('nav.home')}>
+              <SquarePen className="cursor-pointer w-5 h-5" />
+            </Link>
+          )}
 
           <div className="flex items-center gap-x-6">
             {leftContent}
@@ -61,7 +64,7 @@ export const TopNavContainer = ({ children, leftContent }: TopNavContainerProps)
                     {user && (
                       <div className="px-3 py-2 border-b border-black/5 dark:border-white/5">
                         <div className="font-medium text-sm text-black dark:text-white">
-                          {user.fullName || user.username}
+                          {user.name || user.email}
                         </div>
                         <div className="text-xs text-black/60 dark:text-white/60">
                           {user.email}

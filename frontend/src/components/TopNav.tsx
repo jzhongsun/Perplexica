@@ -16,10 +16,14 @@ const HorizontalNavContainer = ({ children }: { children: ReactNode }) => {
 
 const TopNav = ({ 
   children,
-  customNav
+  customNav,
+  icon,
+  title
 }: { 
   children: React.ReactNode;
   customNav?: React.ReactNode;
+  icon?: React.ReactNode;
+  title?: string;
 }) => {
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -79,8 +83,19 @@ const TopNav = ({
     </HorizontalNavContainer>
   );
 
+  const headerContent = (
+    <div className="flex items-center gap-x-3">
+      {icon}
+      {title && (
+        <span className="text-sm font-medium text-black dark:text-white">
+          {title}
+        </span>
+      )}
+    </div>
+  );
+
   return (
-    <TopNavContainer leftContent={navigationLinks}>
+    <TopNavContainer leftContent={navigationLinks} headerContent={headerContent}>
       {/* Mobile Navigation */}
       <div className="fixed bottom-0 w-full z-50 flex flex-row items-center justify-around bg-transparent backdrop-blur-sm border-t border-black/5 dark:border-white/5 px-4 py-4 shadow-sm md:hidden">
         {navLinks.map((link, i) => (
