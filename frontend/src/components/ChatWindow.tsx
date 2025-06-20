@@ -18,6 +18,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
 import { useChatContext } from '@/lib/context/ChatContext';
+import { ChatMessageMeta } from '@/lib/api/types';
 
 export type Message = {
   messageId: string;
@@ -140,12 +141,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
     api: 'http://localhost:8000/api/v1/chat-stream'
   });
 
-  // const chat = new UiChat({
-  //   id: chatId!,
-  //   transport: transport,
-  // });
-
-  const chatHelper = useChat({
+  const chatHelper = useChat<UIMessage<ChatMessageMeta>>({
     id: chatId!,
     transport: transport,
     experimental_throttle: 100
@@ -180,7 +176,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
         chatId,
         (messages) => {
           // setMessages(messages as UIMessage[]);
-          chatHelper.setMessages(messages as UIMessage[]);
+          chatHelper.setMessages(messages as UIMessage<ChatMessageMeta>[]);
         },
         setIsMessagesLoaded,
         (history) => {
@@ -201,7 +197,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const messagesRef = useRef<UIMessage[]>([]);
+  const messagesRef = useRef<UIMessage<ChatMessageMeta>[]>([]);
 
   useEffect(() => {
     messagesRef.current = chatHelper.messages;

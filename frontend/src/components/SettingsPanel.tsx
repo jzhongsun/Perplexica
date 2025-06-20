@@ -164,9 +164,9 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           >
             {/* Header */}
             <div className="sticky top-0 z-50 bg-light-primary dark:bg-dark-primary border-b border-light-200 dark:border-white/10">
-              <div className="flex items-center justify-between px-4 sm:px-6 py-6">
-                <h2 className="flex items-center space-x-2 text-2xl font-semibold text-black dark:text-white">
-                  <SettingsIcon className="w-6 h-6" />
+              <div className="flex items-center justify-between px-4 sm:px-6 py-4">
+                <h2 className="flex items-center space-x-2 text-xl font-semibold text-black dark:text-white">
+                  <SettingsIcon className="w-5 h-5" />
                   <span>{t('settings.title')}</span>
                 </h2>
                 <button

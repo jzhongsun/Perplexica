@@ -8,7 +8,8 @@ import { useRouter } from 'next/navigation';
 import crypto from 'crypto';
 import TopNav from '@/components/TopNav';
 import { useChatContext } from '@/lib/context/ChatContext';
-import { Brain, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
+import { api } from '@/lib/api';
 
 const Home = () => {
   const router = useRouter();
@@ -18,9 +19,27 @@ const Home = () => {
   const [files, setFiles] = useState<Array<{ fileName: string; fileExtension: string; fileId: string }>>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
 
-  const handleSendMessage = (message: string) => {
+  const handleSendMessage = async (message: string) => {
     // Generate a new chat ID
     const chatId = crypto.randomBytes(20).toString('hex');
+
+    const chat = await api.chat.createChat({
+      id: chatId,
+      messages: [
+        {
+          role: 'user',
+          type: 'text',
+          id: crypto.randomBytes(20).toString('hex'),
+          createdAt: new Date().toISOString()
+        }
+      ],
+      focusMode,
+      optimizationMode,
+      files: files.map((file) => ({
+        name: file.fileName,
+        fileId: file.fileId
+      }))
+    });
 
     // Store chat data in context
     setChatData(chatId, {
@@ -42,7 +61,6 @@ const Home = () => {
         <TopNav
           icon={
             <div className="flex items-center">
-              {/* <Brain className="w-5 h-5 text-blue-500" /> */}
               <Sparkles className="w-5 h-5 text-yellow-500" />
             </div>
           }

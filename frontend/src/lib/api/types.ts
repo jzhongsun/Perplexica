@@ -77,3 +77,7 @@ export interface SuggestionsRequest {
   chatHistory: UIMessage[];
   chatModel: ChatModel;
 } 
+
+export interface ChatMessageMeta {
+  createdAt?: string;
+}
