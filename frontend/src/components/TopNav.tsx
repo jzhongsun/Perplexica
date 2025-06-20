@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import { BookOpenText, Home, Search } from 'lucide-react';
 import Link from 'next/link';
-import { useSelectedLayoutSegments } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import React, { type ReactNode, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TopNavContainer } from './TopNavContainer';
@@ -14,8 +14,14 @@ const HorizontalNavContainer = ({ children }: { children: ReactNode }) => {
   );
 };
 
-const TopNav = ({ children }: { children: React.ReactNode }) => {
-  const segments = useSelectedLayoutSegments();
+const TopNav = ({ 
+  children,
+  customNav
+}: { 
+  children: React.ReactNode;
+  customNav?: React.ReactNode;
+}) => {
+  const pathname = usePathname();
   const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
 
@@ -27,19 +33,19 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
     {
       icon: Home,
       href: '/',
-      active: segments.length === 0 || segments.includes('c'),
+      active: pathname === '/' || pathname?.startsWith('/c/'),
       label: t('nav.home'),
     },
     {
       icon: Search,
       href: '/discover',
-      active: segments.includes('discover'),
+      active: pathname === '/discover',
       label: t('nav.discover'),
     },
     {
       icon: BookOpenText,
       href: '/library',
-      active: segments.includes('library'),
+      active: pathname === '/library',
       label: t('nav.library'),
     },
   ];
@@ -49,7 +55,7 @@ const TopNav = ({ children }: { children: React.ReactNode }) => {
     return null;
   }
 
-  const navigationLinks = (
+  const navigationLinks = customNav || (
     <HorizontalNavContainer>
       {navLinks.map((link, i) => (
         <Link

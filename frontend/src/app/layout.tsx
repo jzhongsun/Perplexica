@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils';
 import { Toaster } from 'sonner';
 import ThemeProvider from '@/components/theme/Provider';
 import I18nProvider from '@/components/I18nProvider';
-import TopNav from '@/components/TopNav';
 import { ChatProvider } from '@/lib/context/ChatContext';
 
 const montserrat = Montserrat({
