@@ -17,6 +17,7 @@ import { TextUIPart } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
+import { useChatContext } from '@/lib/context/ChatContext';
 
 export type Message = {
   messageId: string;
@@ -113,11 +114,23 @@ const loadMessages = async (
 
 const ChatWindow = ({ id }: { id?: string }) => {
   const { t } = useTranslation();
-  const searchParams = useSearchParams();
-  const initialMessage = searchParams.get('q');
-
+  const { chatData } = useChatContext();
+  
   const [chatId, setChatId] = useState<string | undefined>(id);
   const [newChatCreated, setNewChatCreated] = useState(false);
+
+  // Get initial data from context if available
+  const initialChatData = chatId ? chatData[chatId] : undefined;
+  const initialMessage = initialChatData?.message;
+  const initialFocusMode = initialChatData?.focusMode;
+  const initialOptimizationMode = initialChatData?.optimizationMode;
+  const initialFileIds = initialChatData?.fileIds || [];
+  const initialFiles = initialChatData?.files || [];
+
+  const [files, setFiles] = useState<File[]>(initialFiles);
+  const [fileIds, setFileIds] = useState<string[]>(initialFileIds);
+  const [focusMode, setFocusMode] = useState(initialFocusMode || 'webSearch');
+  const [optimizationMode, setOptimizationMode] = useState(initialOptimizationMode || 'speed');
 
   const [isConfigReady, setIsConfigReady] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -151,12 +164,6 @@ const ChatWindow = ({ id }: { id?: string }) => {
 
   // const [chatHistory, setChatHistory] = useState<UIMessage[]>([]);
   // const [messages, setMessages] = useState<UIMessage[]>([]);
-
-  const [files, setFiles] = useState<File[]>([]);
-  const [fileIds, setFileIds] = useState<string[]>([]);
-
-  const [focusMode, setFocusMode] = useState('webSearch');
-  const [optimizationMode, setOptimizationMode] = useState('speed');
 
   const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
 
@@ -376,11 +383,11 @@ const ChatWindow = ({ id }: { id?: string }) => {
   };
 
   useEffect(() => {
-    if (isReady && initialMessage && isConfigReady) {
+    if (chatId && initialMessage && chatHelper.messages.length === 0) {
+      // Send initial message if available
       sendMessage(initialMessage);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConfigReady, isReady, initialMessage]);
+  }, [chatId, initialMessage]);
 
   if (hasError) {
     return (

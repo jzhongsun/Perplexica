@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(null, { status: 401 });
     }
 
-    const response = await fetch(`${process.env.BACKEND_URL}/auth/me`, {
+    const response = await fetch(`${process.env.BACKEND_URL}/api/v1/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },

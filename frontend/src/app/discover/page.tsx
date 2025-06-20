@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import TopNav from '@/components/TopNav';
 
 interface Discover {
   title: string;
@@ -67,7 +68,7 @@ const Page = () => {
     </div>
   ) : (
     <>
-      <div>
+      <TopNav>
         <div className="flex flex-col pt-4">
           <div className="flex items-center">
             <Search />
@@ -105,7 +106,7 @@ const Page = () => {
               </Link>
             ))}
         </div>
-      </div>
+      </TopNav>
     </>
   );
 };

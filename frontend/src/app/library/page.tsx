@@ -1,6 +1,7 @@
 'use client';
 
 import DeleteChat from '@/components/DeleteChat';
+import TopNav from '@/components/TopNav';
 import { cn, formatTimeDifference } from '@/lib/utils';
 import { BookOpenText, ClockIcon, Delete, ScanEye } from 'lucide-react';
 import Link from 'next/link';
@@ -57,7 +58,7 @@ const Page = () => {
       </svg>
     </div>
   ) : (
-    <div>
+    <TopNav>
       <div className="flex flex-col pt-4">
         <div className="flex items-center">
           <BookOpenText />
@@ -107,7 +108,7 @@ const Page = () => {
           ))}
         </div>
       )}
-    </div>
+    </TopNav>
   );
 };
 

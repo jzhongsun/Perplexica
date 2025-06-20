@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { Toaster } from 'sonner';
 import ThemeProvider from '@/components/theme/Provider';
 import I18nProvider from '@/components/I18nProvider';
-import TopNav from '@/components/Sidebar';
+import TopNav from '@/components/TopNav';
+import { ChatProvider } from '@/lib/context/ChatContext';
 
 const montserrat = Montserrat({
   weight: ['300', '400', '500', '700'],
@@ -15,9 +16,9 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'Perplexica - Chat with the internet',
+  title: 'Dan - Chat with the internet',
   description:
-    'Perplexica is an AI powered chatbot that is connected to the internet.',
+    'Dan is an AI powered chatbot that is connected to the internet.',
 };
 
 export default function RootLayout({
@@ -28,20 +29,22 @@ export default function RootLayout({
   return (
     <html className="h-full" suppressHydrationWarning>
       <body className={cn('h-full', montserrat.className)}>
-        <I18nProvider>
-          <ThemeProvider>
-            <TopNav>{children}</TopNav>
-            <Toaster
-              toastOptions={{
-                unstyled: true,
-                classNames: {
-                  toast:
-                    'bg-light-primary dark:bg-dark-secondary dark:text-white/70 text-black-70 rounded-lg p-4 flex flex-row items-center space-x-2',
-                },
-              }}
-            />
-          </ThemeProvider>
-        </I18nProvider>
+        <ChatProvider>
+          <I18nProvider>
+            <ThemeProvider>
+              <div>{children}</div>
+              <Toaster
+                toastOptions={{
+                  unstyled: true,
+                  classNames: {
+                    toast:
+                      'bg-light-primary dark:bg-dark-secondary dark:text-white/70 text-black-70 rounded-lg p-4 flex flex-row items-center space-x-2',
+                  },
+                }}
+              />
+            </ThemeProvider>
+          </I18nProvider>
+        </ChatProvider>
       </body>
     </html>
   );

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     
-    const response = await fetch(`${process.env.BACKEND_URL}/auth/avatar`, {
+    const response = await fetch(`${process.env.BACKEND_URL}/api/v1/auth/avatar`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
