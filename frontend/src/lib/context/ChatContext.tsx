@@ -1,8 +1,9 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode } from 'react';
+import { Chat } from '../api/types';
 
-interface ChatData {
+export interface ChatData {
   message: string;
   focusMode: string;
   optimizationMode: string;
@@ -13,13 +14,17 @@ interface ChatData {
 interface ChatContextType {
   chatData: Record<string, ChatData>;
   setChatData: (chatId: string, data: ChatData) => void;
+
+  chat: Record<string, Chat>;
+  setChat: (chatId: string, chat: Chat) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [chatData, setChatDataState] = useState<Record<string, ChatData>>({});
-
+  const [chat, setChatState] = useState<Record<string, Chat>>({});
+  
   const setChatData = (chatId: string, data: ChatData) => {
     setChatDataState(prev => ({
       ...prev,
@@ -27,8 +32,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const setChat = (chatId: string, chat: Chat) => {
+    setChatState(prev => ({
+      ...prev,
+      [chatId]: chat
+    }));
+  };
+
   return (
-    <ChatContext.Provider value={{ chatData, setChatData }}>
+    <ChatContext.Provider value={{ chatData, setChatData, chat, setChat }}>
       {children}
     </ChatContext.Provider>
   );

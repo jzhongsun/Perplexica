@@ -23,7 +23,7 @@ const TopNav = ({
   children: React.ReactNode;
   customNav?: React.ReactNode;
   icon?: React.ReactNode;
-  title?: string;
+  title?: string | React.ReactNode;
 }) => {
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -37,7 +37,7 @@ const TopNav = ({
     {
       icon: Home,
       href: '/',
-      active: pathname === '/' || pathname?.startsWith('/c/'),
+      active: pathname === '/',
       label: t('nav.home'),
     },
     {
@@ -86,11 +86,7 @@ const TopNav = ({
   const headerContent = (
     <div className="flex items-center gap-x-3">
       {icon}
-      {title && (
-        <span className="text-sm font-medium text-black dark:text-white">
-          {title}
-        </span>
-      )}
+      {title}
     </div>
   );
 

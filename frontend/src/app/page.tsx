@@ -5,11 +5,10 @@ import { Suspense } from 'react';
 import MetadataProvider from '@/components/MetadataProvider';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import crypto from 'crypto';
 import TopNav from '@/components/TopNav';
 import { useChatContext } from '@/lib/context/ChatContext';
 import { Sparkles } from 'lucide-react';
-import { api } from '@/lib/api';
+import { v4 as uuidv4 } from 'uuid';
 
 const Home = () => {
   const router = useRouter();
@@ -20,28 +19,7 @@ const Home = () => {
   const [fileIds, setFileIds] = useState<string[]>([]);
 
   const handleSendMessage = async (message: string) => {
-    // Generate a new chat ID
-    const chatId = crypto.randomBytes(20).toString('hex');
-
-    const chat = await api.chat.createChat({
-      id: chatId,
-      messages: [
-        {
-          role: 'user',
-          type: 'text',
-          id: crypto.randomBytes(20).toString('hex'),
-          createdAt: new Date().toISOString()
-        }
-      ],
-      focusMode,
-      optimizationMode,
-      files: files.map((file) => ({
-        name: file.fileName,
-        fileId: file.fileId
-      }))
-    });
-
-    // Store chat data in context
+    const chatId = uuidv4();
     setChatData(chatId, {
       message,
       focusMode,
@@ -50,7 +28,6 @@ const Home = () => {
       files
     });
 
-    // Navigate to the chat page without query parameters
     router.push(`/c/${chatId}`);
   };
 

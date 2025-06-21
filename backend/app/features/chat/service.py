@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import logging
 import traceback
 
+from app.db.models import DbMessage, DbMessagePart
 from app.db.schemas import ChatCreate, User
 from fastapi import HTTPException
 
@@ -22,12 +23,13 @@ from .schemas import (
     ChatHistory,
     ChatMetadata,
     ChatFile,
+    MessagesResponse,
 )
 import a2a.types as a2a_types
 from a2a.client import A2AClient
 import httpx
 from app.core.utils.messages import ui_message_to_a2a_message
-from app.core.ui_messages import UIMessage
+from app.core.ui_messages import UIMessage, UIMessagePart, TextUIPart, FileUIPart, ReasoningUIPart, SourceUrlUIPart, SourceDocumentUIPart
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +256,10 @@ class ChatService:
                     title=chat.title,
                     focusMode=chat.focus_mode,
                     # optimizationMode=chat.optimization_mode,
-                    files=[ChatFile(name=file.name, fileId=file.file_id) for file in chat.files],
+                    files=[
+                        ChatFile(name=file.name, fileId=file.file_id)
+                        for file in chat.files
+                    ],
                     createdAt=chat.created_at,
                     updatedAt=chat.updated_at,
                 ),
@@ -481,3 +486,50 @@ class ChatService:
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error in chat: {str(e)}")
+        
+    def build_ui_message_part(self, message_part: DbMessagePart) -> UIMessagePart:
+        if message_part.part_type == "text":
+            return TextUIPart(text=message_part.part_data["text"])
+        else:
+            logger.warning(f"Unknown part type: {message_part.part_type}")
+            return None
+        
+    def build_ui_message(self, message: DbMessage, message_parts: List[DbMessagePart]) -> UIMessage:
+        parts = []
+        for message_part in message_parts:
+            part = self.build_ui_message_part(message_part)
+            if part is not None:
+                parts.append(part)
+        return UIMessage(id=message.id, 
+                         role= "user" if message.role == "user" else "assistant", 
+                         parts=parts,
+                         metadata=message.metadata)
+
+    async def fetch_messages_of_chat(
+        self, chat_id: str, offset: int = 0, limit: int = 100
+    ) -> MessagesResponse:
+        """Fetch messages of chat by ID."""
+        import app.db.converters as converters
+        logger.info(f"Fetching messages of chat: {chat_id}, offset: {offset}, limit: {limit}")
+        try:
+            messages = await self.db.fetch_messages(chat_id, offset=offset, limit=limit)
+            message_ids = [message.id for message in messages]
+            message_parts = await self.db.fetch_message_parts(message_ids)
+            message_parts_dict = {}
+            for part in message_parts:
+                if part.message_id not in message_parts_dict:
+                    message_parts_dict[part.message_id] = []
+                message_parts_dict[part.message_id].append(part)
+            ui_messages = []
+            for message in messages:
+                ui_messages.append(converters.convert_db_message_to_ui_message(message, message_parts_dict.get(message.id, [])))
+
+            return MessagesResponse(
+                chatId=chat_id,
+                messages=ui_messages,
+            )
+        except Exception as e:
+            logger.error(f"Error in fetch messages of chat: {str(e)}, {traceback.format_exc()}")
+            raise HTTPException(
+                status_code=500, detail=f"Error in fetch messages of chat: {str(e)}"
+            )

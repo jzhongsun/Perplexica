@@ -15,7 +15,7 @@ class DbMessagePart(DbUserBase):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     message_id: Mapped[str] = mapped_column(String, ForeignKey("messages.id"), nullable=False)
     part_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    part_type: Mapped[str] = mapped_column(SQLEnum("text", "file", "data", name="part_types"), nullable=False)
+    part_type: Mapped[str] = mapped_column(String, nullable=False)
     part_data: Mapped[dict] = mapped_column(JSON, nullable=False)
     _metadata: Mapped[dict] = mapped_column(JSON, name="metadata", nullable=True)
 
@@ -31,7 +31,7 @@ class DbArtifactPart(DbUserBase):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     artifact_id: Mapped[str] = mapped_column(String, ForeignKey("artifacts.id"), nullable=False)
     part_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    part_type: Mapped[str] = mapped_column(SQLEnum("text", "file", "data", name="part_types"), nullable=False)
+    part_type: Mapped[str] = mapped_column(String, nullable=False)
     part_data: Mapped[dict] = mapped_column(JSON, nullable=False)
     _metadata: Mapped[dict] = mapped_column(JSON, name="metadata", nullable=True)
     

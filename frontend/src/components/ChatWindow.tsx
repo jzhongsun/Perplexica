@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Document } from '@langchain/core/documents';
 import Navbar from './Navbar';
 import Chat from './Chat';
@@ -17,8 +17,8 @@ import { TextUIPart } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
-import { useChatContext } from '@/lib/context/ChatContext';
-import { ChatMessageMeta } from '@/lib/api/types';
+import { useChatContext, type ChatData } from '@/lib/context/ChatContext';
+import { Chat as ChatType, ChatMessageMeta } from '@/lib/api/types';
 import { api } from '@/lib/api';
 
 export type Message = {
@@ -65,22 +65,20 @@ const checkConfig = async (
 
 const loadMessages = async (
   chatId: string,
-  setMessages: (messages: UIMessage[]) => void,
+  chat: ChatType,
+  setMessages: (messages: UIMessage<ChatMessageMeta>[]) => void,
   setIsMessagesLoaded: (loaded: boolean) => void,
-  setChatHistory: (history: UIMessage[]) => void,
+  setChatHistory: (history: UIMessage<ChatMessageMeta>[]) => void,
   setFocusMode: (mode: string) => void,
   setNotFound: (notFound: boolean) => void,
   setFiles: (files: File[]) => void,
-  setFileIds: (fileIds: string[]) => void,
+  setFileIds: (fileIds: string[]) => void,  
 ) => {
-  try {
-    const { chat } = await api.chat.getChat(chatId);
-    console.log(chat);
-    
-    const messages = [] as UIMessage[];
+  try {    
+    const messages = [] as UIMessage<ChatMessageMeta>[];
     setMessages(messages);
 
-    const history = messages as UIMessage[];
+    const history = messages as UIMessage<ChatMessageMeta>[];
     console.debug(new Date(), 'app:messages_loaded');
 
     const files = chat.files.map((file: any) => {
@@ -108,96 +106,112 @@ const loadMessages = async (
   }
 };
 
-const ChatWindow = ({ id }: { id?: string }) => {
+const ChatWindow = ({ id, initialChat, initialChatData }: { 
+  id: string,
+  initialChat?: ChatType,
+  initialChatData?: ChatData,
+}) => {
   const { t } = useTranslation();
-  const { chatData } = useChatContext();
-  
-  const [chatId, setChatId] = useState<string | undefined>(id);
+  const [chatId, setChatId] = useState<string>(id);
+  const [chat, setChat] = useState<ChatType | undefined>(initialChat);
+  const [chatData] = useState<ChatData | undefined>(initialChatData);
   const [newChatCreated, setNewChatCreated] = useState(false);
-
-  // Get initial data from context if available
-  const initialChatData = chatId ? chatData[chatId] : undefined;
-  const initialMessage = initialChatData?.message;
-  const initialFocusMode = initialChatData?.focusMode;
-  const initialOptimizationMode = initialChatData?.optimizationMode;
-  const initialFileIds = initialChatData?.fileIds || [];
-  const initialFiles = initialChatData?.files || [];
-
-  const [files, setFiles] = useState<File[]>(initialFiles);
-  const [fileIds, setFileIds] = useState<string[]>(initialFileIds);
-  const [focusMode, setFocusMode] = useState(initialFocusMode || 'webSearch');
-  const [optimizationMode, setOptimizationMode] = useState(initialOptimizationMode || 'speed');
-
   const [isConfigReady, setIsConfigReady] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileIds, setFileIds] = useState<string[]>([]);
+  
+  const initializationRef = useRef(false);
 
   const transport = new DefaultChatTransport({
     api: 'http://localhost:8000/api/v1/chat-stream'
   });
-
+  
   const chatHelper = useChat<UIMessage<ChatMessageMeta>>({
-    id: chatId!,
+    id: chatId,
     transport: transport,
     experimental_throttle: 100
   });
 
+  // Handle config initialization
   useEffect(() => {
-    checkConfig(
-      setIsConfigReady,
-      setHasError,
-      t
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const [loading, setLoading] = useState(false);
-
-  // const [chatHistory, setChatHistory] = useState<UIMessage[]>([]);
-  // const [messages, setMessages] = useState<UIMessage[]>([]);
-
-  const [isMessagesLoaded, setIsMessagesLoaded] = useState(false);
-
-  const [notFound, setNotFound] = useState(false);
-
-  useEffect(() => {
-    if (
-      chatId &&
-      !newChatCreated &&
-      !isMessagesLoaded &&
-      chatHelper.messages.length === 0
-    ) {
-      loadMessages(
-        chatId,
-        (messages) => {
-          // setMessages(messages as UIMessage[]);
-          chatHelper.setMessages(messages as UIMessage<ChatMessageMeta>[]);
-        },
-        setIsMessagesLoaded,
-        (history) => {
-          // setChatHistory(history as UIMessage[]);
-          // chatHelper.setMessages(history as UIMessage[]);
-        },
-        setFocusMode,
-        setNotFound,
-        setFiles,
-        setFileIds,
-      );
-    } else if (!chatId) {
-      setNewChatCreated(true);
-      setIsMessagesLoaded(true);
-      setChatId(crypto.randomBytes(20).toString('hex'));
-      setChatId(chatHelper.id);
+    if (!isConfigReady && !hasError) {
+      checkConfig(setIsConfigReady, setHasError, t);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isConfigReady, hasError, t]);
 
-  const messagesRef = useRef<UIMessage<ChatMessageMeta>[]>([]);
-
+  // Handle chat initialization
   useEffect(() => {
-    messagesRef.current = chatHelper.messages;
-  }, [chatHelper]);
+    const initializeChat = async () => {
+      if (initializationRef.current || loading || !isConfigReady) {
+        return;
+      }
 
+      try {
+        initializationRef.current = true;
+        setLoading(true);
+
+        if (!chat && chatData) {
+          // Create new chat
+          const createdChat = await api.chat.createChat({
+            messages: [],
+            focusMode: chatData.focusMode,
+            optimizationMode: chatData.optimizationMode,
+            files: chatData.files.map(file => ({
+              name: file.fileName,
+              fileId: file.fileId,
+            })),
+          });
+          setNewChatCreated(true);
+          setChat(createdChat);
+          setChatId(createdChat.id);
+          setFiles(chatData.files);
+          setFileIds(chatData.files.map(file => file.fileId));
+        } 
+        if (!chat) {
+          // Fetch existing chat
+          const fetchedChat = await api.chat.getChat(chatId!);
+          setChat(fetchedChat.chat);
+        }
+        // Convert API files to File type
+        const newFiles = chat?.files.map(apiFile => ({
+          fileName: apiFile.name || '',
+          fileExtension: (apiFile.name || '').split('.').pop() || '',
+          fileId: apiFile.fileId || '',
+        }));
+
+        setFiles(newFiles ?? []);
+        setFileIds(newFiles?.map(file => file.fileId) ?? []);
+
+        if (!newChatCreated) {
+          const fetchedMessages = await api.chat.fetchMessagesOfChat(chatId!);
+          chatHelper.setMessages(fetchedMessages.messages);
+        }
+        setIsMessagesLoaded(true);
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+        toast.error(t('chat.error.initError'));
+        setHasError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeChat();
+  }, [chatId, isConfigReady]);
+
+  // Handle message initialization
+  useEffect(() => {
+    if (chat && !newChatCreated && chatHelper.messages.length === 0) {
+      chatHelper.setMessages([]);
+    }
+  }, [chat, newChatCreated, chatHelper]);
+
+  // Update ready state
   useEffect(() => {
     if (isMessagesLoaded && isConfigReady) {
       setIsReady(true);
@@ -206,6 +220,12 @@ const ChatWindow = ({ id }: { id?: string }) => {
       setIsReady(false);
     }
   }, [isMessagesLoaded, isConfigReady]);
+
+  const messagesRef = useRef<UIMessage<ChatMessageMeta>[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = chatHelper.messages;
+  }, [chatHelper.messages]);
 
   const sendMessage = async (message: string, messageId?: string) => {
     if (loading) return;
@@ -222,121 +242,6 @@ const ChatWindow = ({ id }: { id?: string }) => {
 
     messageId = messageId ?? crypto.randomBytes(7).toString('hex');
 
-    // setMessages((prevMessages) => [
-    //   ...prevMessages,
-    //   {
-    //     id: messageId,
-    //     role: 'user',
-    //     parts: [
-    //       {
-    //         type: 'text',
-    //         text: message,
-    //       },
-    //     ],
-    //   }
-    // ]);
-
-    // const messageHandler = async (data: any) => {
-    //   if (data.type === 'error') {
-    //     toast.error(data.data);
-    //     setLoading(false);
-    //     return;
-    //   }
-
-    //   if (data.type === 'sources') {
-    //     sources = data.data;
-    //     if (!added) {
-    //       setMessages((prevMessages) => [
-    //         ...prevMessages,
-    //         {
-    //           content: '',
-    //           messageId: data.messageId,
-    //           chatId: chatId!,
-    //           role: 'assistant',
-    //           sources: sources,
-    //           createdAt: new Date(),
-    //         },
-    //       ]);
-    //       added = true;
-    //     }
-    //     setMessageAppeared(true);
-    //   }
-
-    //   if (data.type === 'message') {
-    //     if (!added) {
-    //       setMessages((prevMessages) => [
-    //         ...prevMessages,
-    //         {
-    //           content: data.data,
-    //           messageId: data.messageId,
-    //           chatId: chatId!,
-    //           role: 'assistant',
-    //           sources: sources,
-    //           createdAt: new Date(),
-    //         },
-    //       ]);
-    //       added = true;
-    //     }
-
-    //     setMessages((prev) =>
-    //       prev.map((message) => {
-    //         if (message.messageId === data.messageId) {
-    //           return { ...message, content: message.content + data.data };
-    //         }
-
-    //         return message;
-    //       }),
-    //     );
-
-    //     recievedMessage += data.data;
-    //     setMessageAppeared(true);
-    //   }
-
-    //   if (data.type === 'messageEnd') {
-    //     setChatHistory((prevHistory) => [
-    //       ...prevHistory,
-    //       ['human', message],
-    //       ['assistant', recievedMessage],
-    //     ]);
-
-    //     setLoading(false);
-
-    //     const lastMsg = messagesRef.current[messagesRef.current.length - 1];
-
-    //     const autoImageSearch = localStorage.getItem('autoImageSearch');
-    //     const autoVideoSearch = localStorage.getItem('autoVideoSearch');
-
-    //     if (autoImageSearch === 'true') {
-    //       document
-    //         .getElementById(`search-images-${lastMsg.messageId}`)
-    //         ?.click();
-    //     }
-
-    //     if (autoVideoSearch === 'true') {
-    //       document
-    //         .getElementById(`search-videos-${lastMsg.messageId}`)
-    //         ?.click();
-    //     }
-
-    //     if (
-    //       lastMsg.role === 'assistant' &&
-    //       lastMsg.sources &&
-    //       lastMsg.sources.length > 0 &&
-    //       !lastMsg.suggestions
-    //     ) {
-    //       const suggestions = await getSuggestions(messagesRef.current);
-    //       setMessages((prev) =>
-    //         prev.map((msg) => {
-    //           if (msg.messageId === lastMsg.messageId) {
-    //             return { ...msg, suggestions: suggestions };
-    //           }
-    //           return msg;
-    //         }),
-    //       );
-    //     }
-    //   }
-    // };
-
     await chatHelper.sendMessage({
       id: messageId,
       role: 'user',
@@ -349,9 +254,8 @@ const ChatWindow = ({ id }: { id?: string }) => {
     }, {
       body: {
         options: {
-          optimization_mode: optimizationMode,
-          focus_mode: focusMode,
-          // system_instructions: localStorage.getItem('systemInstructions'),
+          optimization_mode: chatData?.optimizationMode,
+          focus_mode: chatData?.focusMode,
         }
       }
     });
@@ -374,11 +278,11 @@ const ChatWindow = ({ id }: { id?: string }) => {
   };
 
   useEffect(() => {
-    if (chatId && initialMessage && chatHelper.messages.length === 0) {
+    if (chatId && chatData?.message && chatHelper.messages.length === 0) {
       // Send initial message if available
-      sendMessage(initialMessage);
+      sendMessage(chatData.message);
     }
-  }, [chatId, initialMessage]);
+  }, [chatId, chatData?.message]);
 
   if (hasError) {
     return (
@@ -407,15 +311,20 @@ const ChatWindow = ({ id }: { id?: string }) => {
         </div>
       ) : (
         <>
-          {/* {chatHelper.messages.length === 0 ? (
-            <EmptyChat />
+          {chatHelper.messages.length === 0 ? (
+            <div>Empty Chat</div>
           ) : (
             <Chat
+              chat={chatHelper}
               messages={chatHelper.messages}
               loading={loading}
-              onRewrite={rewrite}
+              sendMessage={sendMessage}
+              setFiles={() => {}}
+              setFileIds={() => {}}
+              files={chat?.files ?? []}
+              fileIds={chat?.files.map((file) => file.fileId) ?? []}
             />
-          )} */}
+          )}
         </>
       )}
     </div>

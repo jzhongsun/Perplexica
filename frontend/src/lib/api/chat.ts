@@ -1,5 +1,6 @@
 import { ApiClient } from './client';
-import { Chat } from './types';
+import { Chat, ChatMessageMeta } from './types';
+import { UIMessage } from 'ai';
 
 export class ChatApi extends ApiClient {
   constructor() {
@@ -24,5 +25,9 @@ export class ChatApi extends ApiClient {
 
   async updateChat(chatId: string, chat: Partial<Chat>): Promise<Chat> {
     return await this.put(`/chats/${chatId}`, chat);
+  }
+
+  async fetchMessagesOfChat(chatId: string): Promise<{ messages: UIMessage<ChatMessageMeta>[] }> {
+    return await this.get(`/chats/${chatId}/messages`);
   }
 } 

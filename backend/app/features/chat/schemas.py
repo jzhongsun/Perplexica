@@ -152,6 +152,10 @@ class ChatHistory(BaseModel):
     chat: ChatMetadata = Field(..., description="Chat metadata")
     messages: List[Message] = Field(default_factory=list, description="List of messages")
 
+class MessagesResponse(BaseModel):
+    chatId: str = Field(..., description="Unique chat identifier")
+    messages: List[UIMessage] = Field(..., description="List of messages")
+
 class StreamResponse(BaseModel):
     type: Literal["message", "sources", "messageEnd", "error"] = Field(..., description="Response type")
     data: Optional[str] = None

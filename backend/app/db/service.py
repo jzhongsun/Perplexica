@@ -172,8 +172,8 @@ class UserDbService:
         logger.info(f"Created message parts: {message_parts}")
         return message_parts
     
-    async def fetch_message_parts(self, message_id: str) -> List[DbMessagePart]:
-        query = select(DbMessagePart).where(DbMessagePart.message_id == message_id)
+    async def fetch_message_parts(self, message_ids: List[str]) -> List[DbMessagePart]:
+        query = select(DbMessagePart).where(DbMessagePart.message_id.in_(message_ids))
         result = await self.session.execute(query)
         return list(result.scalars().all())    
     

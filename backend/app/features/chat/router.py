@@ -1,12 +1,15 @@
 """Chat router module."""
 from fastapi import APIRouter, Depends
+from typing import List
 
 from .service import ChatService
 from .schemas import (
     ChatListResponse,
-    ChatHistory
+    ChatHistory,
+    MessagesResponse
 )
 from app.depends import get_chat_service
+from app.core.ui_messages import UIMessage
 
 router = APIRouter(prefix="/chats", tags=["chat"])
 @router.get("", response_model=ChatListResponse)
@@ -33,3 +36,14 @@ async def delete_chat(
     """Delete chat by ID."""
     await chat_service.delete_chat(chat_id)
     return {"status": "success", "message": "Chat deleted"} 
+
+
+@router.get("/{chat_id}/messages", response_model=MessagesResponse)
+async def get_chat_messages(
+    chat_id: str,
+    offset: int = 0,
+    limit: int = 100,
+    chat_service: ChatService = Depends(get_chat_service)
+) -> MessagesResponse:
+    """Get chat messages by ID."""
+    return await chat_service.fetch_messages_of_chat(chat_id, offset, limit)
