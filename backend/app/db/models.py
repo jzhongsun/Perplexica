@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 from sqlalchemy import JSON, String, Integer, ForeignKey, Enum as SQLEnum, Column, DateTime, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -99,6 +99,10 @@ class DbTask(DbUserBase):
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc)) 
 
+class DbChatFile(TypedDict):
+    name: str
+    file_id: str
+
 class DbChat(DbUserBase):
     """Chat model for storing chat sessions."""
     __tablename__ = "chats"
@@ -111,7 +115,8 @@ class DbChat(DbUserBase):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc)) 
     
     focus_mode: Mapped[str] = mapped_column(String, nullable=False)
-    files: Mapped[List[dict]] = mapped_column(JSON, default=list)
+    # optimization_mode: Mapped[str] = mapped_column(String, nullable=True, default="speed")
+    files: Mapped[List[DbChatFile]] = mapped_column(JSON, default=list)
     
     # Relationship
     # messages: Mapped[List[DbMessage]] = relationship("Message", back_populates="chat", cascade="all, delete-orphan")

@@ -40,7 +40,7 @@ class UserDbService:
         await self.session.refresh(chat)
         return chat
 
-    async def get_chat(self, chat_id: str) -> Optional[DbChat]:
+    async def fetch_chat(self, chat_id: str) -> Optional[DbChat]:
         """Get a chat by ID."""
         query = (
             select(DbChat)
@@ -49,7 +49,7 @@ class UserDbService:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def list_chats(self) -> List[DbChat]:
+    async def fetch_chats(self) -> List[DbChat]:
         """List all chats for the current user."""
         query = (
             select(DbChat)
@@ -60,7 +60,7 @@ class UserDbService:
 
     async def delete_chat(self, chat_id: str) -> bool:
         """Delete a chat."""
-        chat = await self.get_chat(chat_id)
+        chat = await self.fetch_chat(chat_id)
         if chat and chat.user_id == self.user_id:
             await self.session.delete(chat)
             await self.session.commit()
@@ -70,7 +70,7 @@ class UserDbService:
     async def create_message_x(self, message_data: MessageCreate) -> DbMessage:
         """Create a new message."""
         # Verify the chat belongs to the current user
-        chat = await self.get_chat(message_data.chat_id)
+        chat = await self.fetch_chat(message_data.chat_id)
         if not chat or chat.user_id != self.user_id:
             raise ValueError("Chat not found or access denied")
 
@@ -89,7 +89,7 @@ class UserDbService:
     async def get_chat_messages(self, chat_id: str) -> List[DbMessage]:
         """Get all messages for a chat."""
         # Verify the chat belongs to the current user
-        chat = await self.get_chat(chat_id)
+        chat = await self.fetch_chat(chat_id)
         if not chat or chat.user_id != self.user_id:
             return []
 

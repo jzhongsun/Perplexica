@@ -19,6 +19,7 @@ import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
 import { useChatContext } from '@/lib/context/ChatContext';
 import { ChatMessageMeta } from '@/lib/api/types';
+import { api } from '@/lib/api';
 
 export type Message = {
   messageId: string;
@@ -72,45 +73,39 @@ const loadMessages = async (
   setFiles: (files: File[]) => void,
   setFileIds: (fileIds: string[]) => void,
 ) => {
-  const res = await fetch(`/api/v1/chats/${chatId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  try {
+    const { chat } = await api.chat.getChat(chatId);
+    console.log(chat);
+    
+    const messages = [] as UIMessage[];
+    setMessages(messages);
 
-  if (res.status === 404) {
-    setNotFound(true);
+    const history = messages as UIMessage[];
+    console.debug(new Date(), 'app:messages_loaded');
+
+    const files = chat.files.map((file: any) => {
+      return {
+        fileName: file.name,
+        fileExtension: file.name.split('.').pop(),
+        fileId: file.fileId,
+      };
+    });
+
+    setFiles(files);
+    setFileIds(files.map((file: File) => file.fileId));
+
+    setChatHistory(history);
+    setFocusMode(chat.focusMode);
     setIsMessagesLoaded(true);
-    return;
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      setNotFound(true);
+    } else {
+      console.error(error);
+      toast.error(('chat.error.loadError'));
+    }
+    setIsMessagesLoaded(true);
   }
-
-  const data = await res.json();
-
-  const messages = [] as UIMessage[];
-
-  setMessages(messages);
-
-  const history = messages as UIMessage[];
-
-  console.debug(new Date(), 'app:messages_loaded');
-
-  // document.title = messages[0].parts[0].text;
-
-  const files = data.chat.files.map((file: any) => {
-    return {
-      fileName: file.name,
-      fileExtension: file.name.split('.').pop(),
-      fileId: file.fileId,
-    };
-  });
-
-  setFiles(files);
-  setFileIds(files.map((file: File) => file.fileId));
-
-  setChatHistory(history);
-  setFocusMode(data.chat.focusMode);
-  setIsMessagesLoaded(true);
 };
 
 const ChatWindow = ({ id }: { id?: string }) => {
@@ -412,7 +407,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
         </div>
       ) : (
         <>
-          {chatHelper.messages.length === 0 ? (
+          {/* {chatHelper.messages.length === 0 ? (
             <EmptyChat />
           ) : (
             <Chat
@@ -420,7 +415,7 @@ const ChatWindow = ({ id }: { id?: string }) => {
               loading={loading}
               onRewrite={rewrite}
             />
-          )}
+          )} */}
         </>
       )}
     </div>

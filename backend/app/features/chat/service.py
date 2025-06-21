@@ -21,6 +21,7 @@ from .schemas import (
     Message,
     ChatHistory,
     ChatMetadata,
+    ChatFile,
 )
 import a2a.types as a2a_types
 from a2a.client import A2AClient
@@ -41,6 +42,7 @@ FOCUS_MODE_2_AGENT_URL = {
     "web_search_and_answer_with_files": f"{A2A_BASE_AGENT_URL}/web_search_and_answer_with_files/",
     "web_search_and_answer_with_files_and_context": f"{A2A_BASE_AGENT_URL}/web_search_and_answer_with_files_and_context/",
 }
+
 
 class ChatService:
     """Chat service class."""
@@ -68,17 +70,15 @@ class ChatService:
         self, chat_id: str, messages: List[UIMessage], options: Dict[str, Any] = {}
     ) -> AsyncGenerator[a2a_types.SendStreamingMessageResponse, None]:
 
-        chat = await self.db.get_chat(chat_id) if chat_id else None
+        chat = await self.db.fetch_chat(chat_id) if chat_id else None
         if chat is None:
             raise HTTPException(status_code=404, detail="Chat not found")
 
         """Chat stream."""
         agent_client = await self.resolve_agent_client(options)
-        
+
         request_id = str(uuid.uuid4())
-        user_message = ui_message_to_a2a_message(
-            messages[-1], chat_id
-        )
+        user_message = ui_message_to_a2a_message(messages[-1], chat_id)
         stream = agent_client.send_message_streaming(
             request=a2a_types.SendStreamingMessageRequest(
                 id=request_id,
@@ -91,62 +91,80 @@ class ChatService:
         task_id = None
         context_id = None
         agent_id = "entry_agent"
-        
+
         response_messages = {}
         async for response in stream:
             yield response
 
             if isinstance(response.root.result, a2a_types.JSONRPCErrorResponse):
                 logger.error(f"Error in chat stream: {response.root.result.error}")
-                raise HTTPException(status_code=500, detail=f"Error in chat stream: {response.root.result.error}")
-            
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error in chat stream: {response.root.result.error}",
+                )
+
             success_response = response.root
             if isinstance(success_response.result, a2a_types.TaskArtifactUpdateEvent):
-                await self.db.create_artifact(success_response.result.artifact, task_id, context_id)
+                await self.db.create_artifact(
+                    success_response.result.artifact, task_id, context_id
+                )
             elif isinstance(success_response.result, a2a_types.TaskStatusUpdateEvent):
                 # logger.info(f"TaskStatusUpdateEvent: {success_response}")
                 status = success_response.result.status
                 if status.state == a2a_types.TaskState.submitted:
                     continue
-                
+
                 status_message = success_response.result.status.message
                 if status_message is None:
                     continue
-                
+
                 if status_message.messageId not in response_messages.keys():
                     response_messages[status_message.messageId] = status_message
 
                 # append the content of the status message to the previous message
-                previous_message : a2a_types.Message = response_messages.get(status_message.messageId)
+                previous_message: a2a_types.Message = response_messages.get(
+                    status_message.messageId
+                )
                 if previous_message is None or previous_message == status_message:
                     continue
-                
+
                 # logger.info(f"Appending status message to previous message: {previous_message} and {status_message}")
                 previous_message.parts.extend(status_message.parts)
-                                        
+
             elif isinstance(success_response.result, a2a_types.Task):
                 task = response.root.result
                 if task.status.state == a2a_types.TaskState.submitted:
                     task_id = task.id
                     context_id = task.contextId
                     await self.db.create_task(task, chat_id, agent_id)
-                    await self.db.create_message(user_message, chat_id, task_id, context_id)
+                    await self.db.create_message(
+                        user_message, chat_id, task_id, context_id
+                    )
                     if user_message.parts and len(user_message.parts) > 0:
-                        await self.db.create_message_parts(user_message.messageId, user_message.parts)
+                        await self.db.create_message_parts(
+                            user_message.messageId, user_message.parts
+                        )
                 elif task.status.state == a2a_types.TaskState.failed:
                     logger.error(f"Task failed: {task}")
                 elif task.status.state == a2a_types.TaskState.completed:
                     logger.info(f"Task completed: {task}")
                 elif task.status.state == a2a_types.TaskState.working:
-                    logger.info(f"Task working: {task}")                      
+                    logger.info(f"Task working: {task}")
                 else:
                     logger.info(f"Task other status: {task}")
-                    
+
             elif isinstance(success_response.result, a2a_types.Message):
                 logger.info(f"a2a - message: {success_response}")
-                await self.db.create_message(success_response, chat_id, task_id, context_id)
-                if success_response.result.parts and len(success_response.result.parts) > 0:
-                    await self.db.create_message_parts(success_response.result.messageId, success_response.result.parts)                
+                await self.db.create_message(
+                    success_response, chat_id, task_id, context_id
+                )
+                if (
+                    success_response.result.parts
+                    and len(success_response.result.parts) > 0
+                ):
+                    await self.db.create_message_parts(
+                        success_response.result.messageId, success_response.result.parts
+                    )
 
         logger.info(f"Creating final messages: {response_messages.keys()}")
         for message_id, message in response_messages.items():
@@ -154,7 +172,7 @@ class ChatService:
             if message.parts and len(message.parts) > 0:
                 input_parts: List[a2a_types.Part] = message.parts
                 final_parts: List[a2a_types.Part] = []
-                final_text_part: a2a_types.Part = None                
+                final_text_part: a2a_types.Part = None
                 for part in input_parts:
                     if isinstance(part.root, a2a_types.TextPart):
                         if final_text_part is None:
@@ -168,34 +186,56 @@ class ChatService:
 
     async def create_chat(self, request: ChatRequest) -> ChatResponse:
         """Create a new chat."""
-        logger.info(f"Creating chat: chat_id='{request.chat_id}' messages={request.messages} options={request.options}")
+        logger.info(
+            f"Creating chat: chat_id='{request.chat_id}' messages={request.messages} options={request.options}"
+        )
         try:
-            chat = await self.db.create_chat(ChatCreate(
-                id=request.chat_id,
-                title=request.messages[0].content(),
-                focus_mode=request.options["focus_mode"],
-                files=[],
-                user_id=self.user.id,
-            ))
-            return ChatResponse(chat_id=chat.id, message=Message(
-                chat_id=chat.id,
-                message_id=request.messages[0].id if request.messages[0].id else str(uuid.uuid4()),
-                role="assistant",
-                content=f"Echo: {request.messages[0].content()}",
-                timestamp=datetime.now(timezone.utc),
-            ))
-        except Exception as e:
-            error_msg = f"Failed to create chat: {str(e)}\nTraceback:\n{traceback.format_exc()}"
-            logger.error(error_msg)
-            raise HTTPException(
-                status_code=500, detail=error_msg
+            chat = await self.db.create_chat(
+                ChatCreate(
+                    id=request.chat_id,
+                    title=request.messages[0].content(),
+                    focus_mode=request.options["focus_mode"],
+                    files=[],
+                    user_id=self.user.id,
+                )
             )
+            return ChatResponse(
+                chat_id=chat.id,
+                message=Message(
+                    chat_id=chat.id,
+                    message_id=(
+                        request.messages[0].id
+                        if request.messages[0].id
+                        else str(uuid.uuid4())
+                    ),
+                    role="assistant",
+                    content=f"Echo: {request.messages[0].content()}",
+                    timestamp=datetime.now(timezone.utc),
+                ),
+            )
+        except Exception as e:
+            error_msg = (
+                f"Failed to create chat: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+            )
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
 
     async def list_chats(self) -> List[ChatMetadata]:
         """List all chats."""
         try:
-            return [chat["metadata"] for chat in self.chats.values()]
+            chats = await self.db.fetch_chats()
+            return [
+                ChatMetadata(
+                    id=chat.id,
+                    title=chat.title,
+                    focusMode=chat.focus_mode,
+                    createdAt=chat.created_at,
+                    updatedAt=chat.updated_at,
+                )
+                for chat in chats
+            ]
         except Exception as e:
+            logger.error(f"Failed to list chats: {str(e)}, {traceback.format_exc()}")
             raise HTTPException(
                 status_code=500, detail=f"Failed to list chats: {str(e)}"
             )
@@ -203,16 +243,27 @@ class ChatService:
     async def get_chat(self, chat_id: str) -> ChatHistory:
         """Get chat by ID."""
         try:
-            if chat_id not in self.chats:
+            chat = await self.db.fetch_chat(chat_id)
+            if chat is None:
                 raise HTTPException(status_code=404, detail="Chat not found")
 
-            chat = self.chats[chat_id]
             return ChatHistory(
-                chat_id=chat_id, messages=chat["messages"], metadata=chat["metadata"]
+                chat_id=chat.id,
+                chat=ChatMetadata(
+                    id=chat.id,
+                    title=chat.title,
+                    focusMode=chat.focus_mode,
+                    # optimizationMode=chat.optimization_mode,
+                    files=[ChatFile(name=file.name, fileId=file.file_id) for file in chat.files],
+                    createdAt=chat.created_at,
+                    updatedAt=chat.updated_at,
+                ),
+                messages=[],
             )
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Failed to get chat: {str(e)}, {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"Failed to get chat: {str(e)}")
 
     async def delete_chat(self, chat_id: str) -> None:

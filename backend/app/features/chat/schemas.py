@@ -132,18 +132,25 @@ class ChatResponse(BaseModel):
     chat_id: str = Field(..., description="Unique chat identifier")
     message: Message = Field(..., description="Response message")
 
+class ChatFile(BaseModel):
+    name: str = Field(..., description="File name")
+    fileId: str = Field(..., description="File ID")
+
 class ChatMetadata(BaseModel):
     """Chat metadata model."""
-    chat_id: str = Field(..., description="Unique chat identifier")
+    id: str = Field(..., description="Unique chat identifier")
     title: str = Field(..., description="Chat title")
-    created_at: datetime = Field(..., description="Chat creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
+    focusMode: str = Field(..., description="Focus mode")
+    optimizationMode: str = Field(default="speed", description="Optimization mode")
+    files: List[ChatFile] = Field(default_factory=list, description="List of files")
+    createdAt: datetime = Field(..., description="Chat creation timestamp")
+    updatedAt: datetime = Field(..., description="Last update timestamp")
 
 class ChatHistory(BaseModel):
     """Chat history model."""
     chat_id: str = Field(..., description="Unique chat identifier")
+    chat: ChatMetadata = Field(..., description="Chat metadata")
     messages: List[Message] = Field(default_factory=list, description="List of messages")
-    metadata: ChatMetadata = Field(..., description="Chat metadata")
 
 class StreamResponse(BaseModel):
     type: Literal["message", "sources", "messageEnd", "error"] = Field(..., description="Response type")
@@ -156,7 +163,7 @@ class NonStreamResponse(BaseModel):
     sources: Optional[List[Dict[str, Any]]] = Field(default=None)
 
 class MessageMetadata(BaseModel):
-    createdAt: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now, alias="createdAt")
     sources: Optional[List[Dict[str, Any]]] = None 
     
 class ChatListResponse(BaseModel):
