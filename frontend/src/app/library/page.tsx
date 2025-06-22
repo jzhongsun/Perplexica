@@ -70,11 +70,11 @@ const Page = () => {
         </div>
       )}
       {chats.length > 0 && (
-        <div className="flex flex-col pb-20 lg:pb-2">
+        <div className="max-w-screen-xl mx-auto flex flex-col pb-20 lg:pb-2">
           {chats.map((chat, i) => (
             <div
               className={cn(
-                'flex flex-col space-y-4 py-6',
+                'max-screen-xl max-auto flex flex-col space-y-4 py-6',
                 i !== chats.length - 1
                   ? 'border-b border-white-200 dark:border-dark-200'
                   : '',

@@ -71,7 +71,7 @@ const Page = () => {
       icon={<Search className="w-5 h-5" />}
       title="Discover"
     >
-      <div className="grid lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 gap-4 pb-28 lg:pb-8 w-full justify-items-center lg:justify-items-start pt-6">
+      <div className="max-w-screen-xl mx-auto grid lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 gap-4 pb-28 lg:pb-8 justify-items-center lg:justify-items-start pt-6">
         {discover &&
           discover?.map((item, i) => (
             <Link
