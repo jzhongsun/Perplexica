@@ -126,7 +126,7 @@ const MessageBox = ({
         <div
           className={cn(
             'w-full',
-            messageIndex === 0 ? 'pt-16' : 'pt-8',
+            messageIndex === 0 ? 'pt-8' : 'pt-8',
             'break-words',
           )}
         >
@@ -143,7 +143,7 @@ const MessageBox = ({
         <div className="flex flex-col space-y-9 lg:space-y-0 lg:flex-row lg:justify-between lg:space-x-9">
           <div
             ref={dividerRef}
-            className="flex flex-col space-y-6 w-full lg:w-9/12"
+            className="flex flex-col space-y-6 w-full"
           >
             <div className="flex flex-col space-y-2">
               <div className="flex flex-row items-center space-x-2">
