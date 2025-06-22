@@ -7,6 +7,7 @@ import MessageBox from './MessageBox';
 import MessageBoxLoading from './MessageBoxLoading';
 import { UseChatHelpers, UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
+import WorkspacePanel from './WorkspacePanel';
 
 const Chat = ({
   loading,
@@ -41,7 +42,7 @@ const Chat = ({
 
     if (messages.length === 1) {
       const message = convertUIMessageToMessage(messages[0]);
-      document.title = `${message.content.substring(0, 30)} - Perplexica`;
+      document.title = `${message.content.substring(0, 30)} - Danus`;
     }
 
     if (messages[messages.length - 1]?.role == 'user') {
@@ -50,46 +51,57 @@ const Chat = ({
   }, [messages]);
 
   return (
-    <div className="h-[calc(100vh-4rem)] overflow-hidden">
-      <div className="h-full overflow-y-auto">
-        <div className="flex flex-col space-y-6 pt-8 pb-32 sm:mx-4 md:mx-8">
-          {messages.map((msg, i) => {
-            const isLast = i === messages.length - 1;
+    <div className="flex h-[calc(100vh-4rem)]">
+      {/* Left side - Chat area */}
+      <div className="flex-1 min-w-0 relative">
+        <div className="absolute inset-0 overflow-y-auto">
+          <div className="flex flex-col space-y-6 pt-8 pb-32 sm:mx-4 md:mx-8">
+            {messages.map((msg, i) => {
+              const isLast = i === messages.length - 1;
 
-            return (
-              <Fragment key={msg.id}>
-                <MessageBox
-                  key={i}
-                  uiMessage={msg}
-                  messageIndex={i}
-                  history={messages}
-                  loading={loading}
-                  dividerRef={isLast ? dividerRef : undefined}
-                  isLast={isLast}
-                  rewrite={rewrite}
-                  sendMessage={sendMessage}
-                />
-                {!isLast && msg.role === 'assistant' && (
-                  <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
-                )}
-              </Fragment>
-            );
-          })}
-          {loading && !messageAppeared && <MessageBoxLoading />}
-          <div ref={messageEnd} className="h-0" />
+              return (
+                <Fragment key={msg.id}>
+                  <MessageBox
+                    key={i}
+                    uiMessage={msg}
+                    messageIndex={i}
+                    history={messages}
+                    loading={loading}
+                    dividerRef={isLast ? dividerRef : undefined}
+                    isLast={isLast}
+                    rewrite={rewrite}
+                    sendMessage={sendMessage}
+                  />
+                  {!isLast && msg.role === 'assistant' && (
+                    <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
+                  )}
+                </Fragment>
+              );
+            })}
+            {loading && !messageAppeared && <MessageBoxLoading />}
+            <div ref={messageEnd} className="h-0" />
+          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="mx-auto px-4 py-4">
+            <MessageInput
+              loading={loading}
+              sendMessage={sendMessage}
+              fileIds={fileIds}
+              setFileIds={setFileIds}
+              files={files}
+              setFiles={setFiles}
+            />
+          </div>
         </div>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-        <div className="mx-auto px-4 py-4">
-          <MessageInput
-            loading={loading}
-            sendMessage={sendMessage}
-            fileIds={fileIds}
-            setFileIds={setFileIds}
-            files={files}
-            setFiles={setFiles}
-          />
-        </div>
+
+      {/* Right side - Workspace panel */}
+      <div className="w-96 border-l border-gray-200 dark:border-gray-800 overflow-y-auto">
+        <WorkspacePanel 
+          messages={messages}
+          files={files}
+        />
       </div>
     </div>
   );
