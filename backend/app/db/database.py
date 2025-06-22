@@ -1,8 +1,14 @@
 import json
-from typing import Any, AsyncGenerator, Dict
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
+from typing import AsyncGenerator, Dict
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker,
+)
 from sqlalchemy.pool import NullPool
 import os
+from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 
@@ -14,17 +20,20 @@ user_session_factories: Dict[str, async_sessionmaker] = {}
 app_engine: AsyncEngine = None
 app_session_factory: async_sessionmaker = None
 
+
 def get_user_db_url(user_id: str) -> str:
     """Get database URL for a specific user."""
     # Create user database directory if it doesn't exist
     os.makedirs(f"./data/db_user/{user_id}", exist_ok=True)
     return f"sqlite+aiosqlite:///./data/db_user/{user_id}/user_db.db"
 
+
 def get_app_db_url() -> str:
     """Get database URL for application data."""
     # Create app database directory if it doesn't exist
     os.makedirs("./data/db_app", exist_ok=True)
     return "sqlite+aiosqlite:///./data/db_app/app_db.db"
+
 
 def get_user_engine(user_id: str):
     """Get or create engine for a specific user."""
@@ -34,9 +43,10 @@ def get_user_engine(user_id: str):
             db_url,
             poolclass=NullPool,
             echo=settings.SQL_DEBUG,
-            json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
+            json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
         )
     return user_engines[user_id]
+
 
 def get_app_engine():
     """Get or create engine for application data."""
@@ -47,9 +57,10 @@ def get_app_engine():
             db_url,
             poolclass=NullPool,
             echo=settings.SQL_DEBUG,
-            json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False)
+            json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
         )
     return app_engine
+
 
 def get_user_session_factory(user_id: str) -> async_sessionmaker:
     """Get or create session factory for a specific user."""
@@ -60,9 +71,10 @@ def get_user_session_factory(user_id: str) -> async_sessionmaker:
             class_=AsyncSession,
             expire_on_commit=False,
             autocommit=False,
-            autoflush=False
+            autoflush=False,
         )
     return user_session_factories[user_id]
+
 
 def get_app_session_factory() -> async_sessionmaker:
     """Get or create session factory for application data."""
@@ -74,16 +86,36 @@ def get_app_session_factory() -> async_sessionmaker:
             class_=AsyncSession,
             expire_on_commit=False,
             autocommit=False,
-            autoflush=False
+            autoflush=False,
         )
     return app_session_factory
 
+
+@asynccontextmanager
 async def get_user_session(user_id: str) -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting async database sessions for a specific user."""
     session_factory = get_user_session_factory(user_id)
-    return session_factory()
+    async with session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
+
+@asynccontextmanager
 async def get_app_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting async database sessions for application data."""
     session_factory = get_app_session_factory()
-    return session_factory()
+    async with session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

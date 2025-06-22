@@ -49,11 +49,24 @@ FOCUS_MODE_2_AGENT_URL = {
 class ChatService:
     """Chat service class."""
 
-    def __init__(self, db: UserDbService, user: User):
+    def __init__(self, user: User):
         """Initialize chat service."""
-        self.chats = {}
-        self.db = db
         self.user = user
+        self.chats = {}
+
+    async def __aenter__(self):
+        self.db = await UserDbService.create(self.user.id)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(self, 'db'):
+            await self.db.__aexit__(exc_type, exc_val, exc_tb)
+
+    @classmethod
+    async def create(cls, user: User) -> "ChatService":
+        """Create a new ChatService instance."""
+        service = cls(user)
+        return await service.__aenter__()
 
     async def resolve_agent_client(self, options: Dict[str, Any]) -> A2AClient:
         a2a_client = A2AClient(
@@ -274,13 +287,11 @@ class ChatService:
     async def delete_chat(self, chat_id: str) -> None:
         """Delete chat by ID."""
         try:
-            if chat_id not in self.chats:
-                raise HTTPException(status_code=404, detail="Chat not found")
-
-            del self.chats[chat_id]
+            await self.db.delete_chat(chat_id)
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(f"Failed to delete chat: {str(e)}, {traceback.format_exc()}")
             raise HTTPException(
                 status_code=500, detail=f"Failed to delete chat: {str(e)}"
             )

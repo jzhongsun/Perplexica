@@ -15,7 +15,7 @@ interface ChatContextType {
   chatData: Record<string, ChatData>;
   setChatData: (chatId: string, data: ChatData) => void;
 
-  chat: Record<string, Chat>;
+  chats: Record<string, Chat>;
   setChat: (chatId: string, chat: Chat) => void;
 }
 
@@ -23,7 +23,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [chatData, setChatDataState] = useState<Record<string, ChatData>>({});
-  const [chat, setChatState] = useState<Record<string, Chat>>({});
+  const [chats, setChatState] = useState<Record<string, Chat>>({});
   
   const setChatData = (chatId: string, data: ChatData) => {
     setChatDataState(prev => ({
@@ -40,7 +40,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ChatContext.Provider value={{ chatData, setChatData, chat, setChat }}>
+    <ChatContext.Provider value={{ chatData, setChatData, chats, setChat }}>
       {children}
     </ChatContext.Provider>
   );

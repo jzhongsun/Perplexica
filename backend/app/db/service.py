@@ -1,7 +1,7 @@
 from typing import List, Optional
 import uuid
 
-from sqlalchemy import select, event
+from sqlalchemy import select, event, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,6 +18,20 @@ class UserDbService:
     def __init__(self, session: AsyncSession, user_id: str):
         self.session = session
         self.user_id = user_id
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            await self.session.rollback()
+        await self.session.close()
+
+    @classmethod
+    async def create(cls, user_id: str) -> "UserDbService":
+        """Create a new UserDbService instance with a managed session."""
+        async with get_user_session(user_id) as session:
+            return cls(session, user_id)
 
     @classmethod
     async def ensure_user_db_initialized(cls, user_id: str):
@@ -60,12 +74,39 @@ class UserDbService:
 
     async def delete_chat(self, chat_id: str) -> bool:
         """Delete a chat."""
-        chat = await self.fetch_chat(chat_id)
-        if chat and chat.user_id == self.user_id:
-            await self.session.delete(chat)
-            await self.session.commit()
-            return True
-        return False
+        delete_message_parts_query = (
+            delete(DbMessagePart)
+            .where(DbMessagePart.message_id.in_(select(DbMessage.id).where(DbMessage.chat_id == chat_id)))
+        )
+        delete_artifact_parts_query = (
+            delete(DbArtifactPart)
+            .where(DbArtifactPart.artifact_id.in_(select(DbArtifact.id).where(DbArtifact.task_id.in_(select(DbTask.id).where(DbTask.chat_id == chat_id)))))
+        )
+        delete_artifacts_query = (
+            delete(DbArtifact)
+            .where(DbArtifact.task_id.in_(select(DbTask.id).where(DbTask.chat_id == chat_id)))
+        )
+        delete_messages_query = (
+            delete(DbMessage)
+            .where(DbMessage.chat_id == chat_id)
+        )
+        delete_tasks_query = (
+            delete(DbTask)
+            .where(DbTask.chat_id == chat_id)
+        )
+        
+        delete_chat_query = (
+            delete(DbChat)
+            .where(DbChat.id == chat_id, DbChat.user_id == self.user_id)
+        )
+        result = await self.session.execute(delete_message_parts_query)
+        result = await self.session.execute(delete_artifact_parts_query)
+        result = await self.session.execute(delete_artifacts_query)
+        result = await self.session.execute(delete_messages_query)
+        result = await self.session.execute(delete_tasks_query)
+        result = await self.session.execute(delete_chat_query)
+        await self.session.commit()
+        return result.rowcount > 0
 
     async def create_message_x(self, message_data: MessageCreate) -> DbMessage:
         """Create a new message."""

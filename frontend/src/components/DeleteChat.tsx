@@ -10,7 +10,8 @@ import {
 } from '@headlessui/react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
-import { Chat } from '@/app/library/page';
+import { Chat } from '@/lib/api/types';
+import { api } from '@/lib/api';
 
 const DeleteChat = ({
   chatId,
@@ -29,19 +30,8 @@ const DeleteChat = ({
   const handleDelete = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/chats/${chatId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (res.status != 200) {
-        throw new Error('Failed to delete chat');
-      }
-
+      await api.chat.deleteChat(chatId);
       const newChats = chats.filter((chat) => chat.id !== chatId);
-
       setChats(newChats);
 
       if (redirect) {

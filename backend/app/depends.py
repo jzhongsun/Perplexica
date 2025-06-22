@@ -25,5 +25,5 @@ async def get_user_database_service(
 async def get_chat_service(
     user: User = Depends(get_current_user),
 ) -> ChatService:
-    db = await get_user_database_service(user=user)
-    return ChatService(db=db, user=user)
+    """Get chat service with proper session management."""
+    return await ChatService.create(user)

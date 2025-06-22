@@ -12,7 +12,7 @@ import { formatTimeDifference } from '@/lib/utils';
 
 const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
   const { chatId } = use(params);
-  const { chatData, chat, setChat } = useChatContext();
+  const { chatData, chats, setChat } = useChatContext();
   const [error, setError] = useState(false);
   const [title, setTitle] = useState('');
   const [timeAgo, setTimeAgo] = useState<string>('');
@@ -20,17 +20,19 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
   useEffect(() => {
     const fetchChat = async () => {
       try {
-        if (!chat) {
+        if (!chats || !chats[chatId]) {
           const { chat: fetchedChat } = await api.chat.getChat(chatId);
           setChat(chatId, fetchedChat);
           if (fetchedChat.title) {
             setTitle(fetchedChat.title);
           }
+        } else {
+          setTitle(chats[chatId]?.title ?? '');
         }
         // Set initial time ago
         const newTimeAgo = formatTimeDifference(
           new Date(),
-          new Date(chat[chatId]?.createdAt ?? '')
+          new Date(chats[chatId]?.createdAt ?? '')
         );
         setTimeAgo(newTimeAgo);
       } catch (e) {
@@ -43,17 +45,17 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
 
     // Update time ago every minute
     const intervalId = setInterval(() => {
-      if (chat[chatId]?.createdAt) {
+      if (chats[chatId]?.createdAt) {
         const newTimeAgo = formatTimeDifference(
           new Date(),
-          new Date(chat[chatId]?.createdAt)
+          new Date(chats[chatId]?.createdAt)
         );
         setTimeAgo(newTimeAgo);
       }
-    }, 60000);
+    }, 20_000);
 
     return () => clearInterval(intervalId);
-  }, [chatId, chat[chatId]?.createdAt]);
+  }, [chatId, chats[chatId]?.createdAt]);
 
   const headerContent = (
     <div className="flex items-center justify-between w-full">
@@ -63,7 +65,7 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
             {title || 'New Chat'}
           </span>
         </div>
-        {chat && (
+        {chats && (
           <>
             <div className="flex items-center gap-x-2 text-gray-600 dark:text-gray-300">
               <Clock className="w-4 h-4" />
@@ -71,11 +73,11 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
             </div>
             <div className="flex items-center gap-x-2 text-gray-600 dark:text-gray-300">
               <ScanEye className="w-4 h-4" />
-              <span className="text-xs capitalize">{chat[chatId]?.focusMode}</span>
+              <span className="text-xs capitalize">{chats[chatId]?.focusMode}</span>
             </div>
             <div className="flex items-center gap-x-2 text-gray-600 dark:text-gray-300">
               <Zap className="w-4 h-4" />
-              <span className="text-xs capitalize">{chat[chatId]?.optimizationMode}</span>
+              <span className="text-xs capitalize">{chats[chatId]?.optimizationMode}</span>
             </div>
           </>
         )}
@@ -91,7 +93,7 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
       icon={<MessageSquare className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />}
       title={headerContent}
     >
-      <ChatWindow id={chatId} initialChat={chat[chatId]} initialChatData={chatData[chatId]} />
+      <ChatWindow id={chatId} initialChat={chats[chatId]} initialChatData={chatData[chatId]} />
     </TopNav>
   );
 };
