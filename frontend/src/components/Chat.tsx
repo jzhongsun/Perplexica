@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import MessageInput from './MessageInput';
 import { File } from './ChatWindow';
 import MessageBox from './MessageBox';
@@ -31,25 +31,8 @@ const Chat = ({
   files: File[];
   setFiles: (files: File[]) => void;
 }) => {
-  const [dividerWidth, setDividerWidth] = useState(0);
   const dividerRef = useRef<HTMLDivElement | null>(null);
   const messageEnd = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const updateDividerWidth = () => {
-      if (dividerRef.current) {
-        setDividerWidth(dividerRef.current.scrollWidth);
-      }
-    };
-
-    updateDividerWidth();
-
-    window.addEventListener('resize', updateDividerWidth);
-
-    return () => {
-      window.removeEventListener('resize', updateDividerWidth);
-    };
-  });
 
   useEffect(() => {
     const scroll = () => {
@@ -67,36 +50,37 @@ const Chat = ({
   }, [messages]);
 
   return (
-    <div className="flex flex-col space-y-6 pt-8 pb-44 lg:pb-32 sm:mx-4 md:mx-8">
-      {messages.map((msg, i) => {
-        const isLast = i === messages.length - 1;
+    <div className="h-[calc(100vh-4rem)] overflow-hidden">
+      <div className="h-full overflow-y-auto">
+        <div className="flex flex-col space-y-6 pt-8 pb-32 sm:mx-4 md:mx-8">
+          {messages.map((msg, i) => {
+            const isLast = i === messages.length - 1;
 
-        return (
-          <Fragment key={msg.id}>
-            <MessageBox
-              key={i}
-              uiMessage={msg}
-              messageIndex={i}
-              history={messages}
-              loading={loading}
-              dividerRef={isLast ? dividerRef : undefined}
-              isLast={isLast}
-              rewrite={rewrite}
-              sendMessage={sendMessage}
-            />
-            {!isLast && msg.role === 'assistant' && (
-              <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
-            )}
-          </Fragment>
-        );
-      })}
-      {loading && !messageAppeared && <MessageBoxLoading />}
-      <div ref={messageEnd} className="h-0" />
-      {dividerWidth > 0 && (
-        <div
-          className="bottom-24 lg:bottom-10 fixed z-40"
-          style={{ width: dividerWidth }}
-        >
+            return (
+              <Fragment key={msg.id}>
+                <MessageBox
+                  key={i}
+                  uiMessage={msg}
+                  messageIndex={i}
+                  history={messages}
+                  loading={loading}
+                  dividerRef={isLast ? dividerRef : undefined}
+                  isLast={isLast}
+                  rewrite={rewrite}
+                  sendMessage={sendMessage}
+                />
+                {!isLast && msg.role === 'assistant' && (
+                  <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
+                )}
+              </Fragment>
+            );
+          })}
+          {loading && !messageAppeared && <MessageBoxLoading />}
+          <div ref={messageEnd} className="h-0" />
+        </div>
+      </div>
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+        <div className="mx-auto px-4 py-4">
           <MessageInput
             loading={loading}
             sendMessage={sendMessage}
@@ -106,7 +90,7 @@ const Chat = ({
             setFiles={setFiles}
           />
         </div>
-      )}
+      </div>
     </div>
   );
 };
