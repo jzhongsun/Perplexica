@@ -1,14 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Document } from '@langchain/core/documents';
-import Navbar from './Navbar';
 import Chat from './Chat';
-import EmptyChat from './EmptyChat';
-import crypto from 'crypto';
 import { toast } from 'sonner';
-import { useSearchParams } from 'next/navigation';
-import { getSuggestions } from '@/lib/actions';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
 import NextError from 'next/error';
@@ -17,9 +11,10 @@ import { TextUIPart } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
-import { useChatContext, type ChatData } from '@/lib/context/ChatContext';
+import { type ChatData } from '@/lib/context/ChatContext';
 import { Chat as ChatType, ChatMessageMeta } from '@/lib/api/types';
 import { api } from '@/lib/api';
+import { v4 as uuidv4 } from 'uuid';
 
 export type Message = {
   messageId: string;
@@ -63,49 +58,6 @@ const checkConfig = async (
   }
 };
 
-const loadMessages = async (
-  chatId: string,
-  chat: ChatType,
-  setMessages: (messages: UIMessage<ChatMessageMeta>[]) => void,
-  setIsMessagesLoaded: (loaded: boolean) => void,
-  setChatHistory: (history: UIMessage<ChatMessageMeta>[]) => void,
-  setFocusMode: (mode: string) => void,
-  setNotFound: (notFound: boolean) => void,
-  setFiles: (files: File[]) => void,
-  setFileIds: (fileIds: string[]) => void,  
-) => {
-  try {    
-    const messages = [] as UIMessage<ChatMessageMeta>[];
-    setMessages(messages);
-
-    const history = messages as UIMessage<ChatMessageMeta>[];
-    console.debug(new Date(), 'app:messages_loaded');
-
-    const files = chat.files.map((file: any) => {
-      return {
-        fileName: file.name,
-        fileExtension: file.name.split('.').pop(),
-        fileId: file.fileId,
-      };
-    });
-
-    setFiles(files);
-    setFileIds(files.map((file: File) => file.fileId));
-
-    setChatHistory(history);
-    setFocusMode(chat.focusMode);
-    setIsMessagesLoaded(true);
-  } catch (error: any) {
-    if (error.response?.status === 404) {
-      setNotFound(true);
-    } else {
-      console.error(error);
-      toast.error(('chat.error.loadError'));
-    }
-    setIsMessagesLoaded(true);
-  }
-};
-
 const ChatWindow = ({ id, initialChat, initialChatData }: { 
   id: string,
   initialChat?: ChatType,
@@ -125,7 +77,7 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
   
-  const initializationRef = useRef(false);
+  const initializationRef = useRef(false);  
 
   const transport = new DefaultChatTransport({
     api: 'http://localhost:8000/api/v1/chat-stream'
@@ -190,6 +142,7 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
         if (!newChatCreated) {
           const fetchedMessages = await api.chat.fetchMessagesOfChat(chatId!);
           chatHelper.setMessages(fetchedMessages.messages);
+          console.log("fetchedMessages", chatId, fetchedMessages, chatHelper.messages);
         }
         setIsMessagesLoaded(true);
       } catch (error) {
@@ -204,13 +157,6 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
     initializeChat();
   }, [chatId, isConfigReady]);
 
-  // Handle message initialization
-  useEffect(() => {
-    if (chat && !newChatCreated && chatHelper.messages.length === 0) {
-      chatHelper.setMessages([]);
-    }
-  }, [chat, newChatCreated, chatHelper]);
-
   // Update ready state
   useEffect(() => {
     if (isMessagesLoaded && isConfigReady) {
@@ -221,12 +167,6 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
     }
   }, [isMessagesLoaded, isConfigReady]);
 
-  const messagesRef = useRef<UIMessage<ChatMessageMeta>[]>([]);
-
-  useEffect(() => {
-    messagesRef.current = chatHelper.messages;
-  }, [chatHelper.messages]);
-
   const sendMessage = async (message: string, messageId?: string) => {
     if (loading) return;
     if (!isConfigReady) {
@@ -235,13 +175,7 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
     }
 
     setLoading(true);
-
-    let sources: Document[] | undefined = undefined;
-    let recievedMessage = '';
-    let added = false;
-
-    messageId = messageId ?? crypto.randomBytes(7).toString('hex');
-
+    messageId = messageId ?? uuidv4();
     await chatHelper.sendMessage({
       id: messageId,
       role: 'user',
@@ -262,27 +196,16 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
   };
   const rewrite = (messageId: string) => {
     const index = chatHelper.messages.findIndex((msg) => msg.id === messageId);
-
     if (index === -1) return;
-
     const message = chatHelper.messages[index - 1];
-
     chatHelper.setMessages((prev) => {
       return [...prev.slice(0, chatHelper.messages.length > 2 ? index - 1 : 0)];
     });
     chatHelper.setMessages((prev) => {
       return [...prev.slice(0, chatHelper.messages.length > 2 ? index - 1 : 0)];
     });
-
     sendMessage((message.parts[0] as TextUIPart)?.text, message.id);
   };
-
-  useEffect(() => {
-    if (chatId && chatData?.message && chatHelper.messages.length === 0) {
-      // Send initial message if available
-      sendMessage(chatData.message);
-    }
-  }, [chatId, chatData?.message]);
 
   if (hasError) {
     return (
@@ -319,10 +242,12 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
               messages={chatHelper.messages}
               loading={loading}
               sendMessage={sendMessage}
-              setFiles={() => {}}
-              setFileIds={() => {}}
-              files={chat?.files ?? []}
-              fileIds={chat?.files.map((file) => file.fileId) ?? []}
+              setFiles={setFiles}
+              setFileIds={setFileIds}
+              files={files}
+              fileIds={fileIds}
+              messageAppeared={false}
+              rewrite={rewrite}
             />
           )}
         </>

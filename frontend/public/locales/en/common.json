@@ -78,6 +78,8 @@
 
   "profile": {
     "title": "Profile",
+    "name": "Name",
+    "namePlaceholder": "Enter your name",
     "fullName": "Full Name",
     "fullNamePlaceholder": "Enter your full name",
     "username": "Username",
