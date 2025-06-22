@@ -61,8 +61,8 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
     <div className="flex items-center justify-between w-full">
       <div className="flex items-center gap-x-6">
         <div className="flex items-center gap-x-3">
-          <span className="text-sm font-medium text-black dark:text-white">
-            {title || 'New Chat'}
+          <span className="text-black dark:text-white">
+            {(title || 'New Chat').length > 40 ? (title || 'New Chat').substring(0, 40) + '...' : (title || 'New Chat')}
           </span>
         </div>
         {chats && (

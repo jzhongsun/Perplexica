@@ -122,7 +122,7 @@ const MessageBox = ({
 
   return (
     <div>
-      {message.role === 'user' && (
+      {uiMessage.role === 'user' && (
         <div
           className={cn(
             'w-full',
@@ -130,29 +130,21 @@ const MessageBox = ({
             'break-words',
           )}
         >
-          <h2 className="text-black dark:text-white font-medium text-3xl lg:w-9/12">
-            {message.content}
-          </h2>
+          {uiMessage.parts.map((part, index) => (
+            part.type === 'text' && (
+              <span key={index} className="text-black dark:text-white font-[400]">
+                {part.text}
+              </span>
+            )
+          ))}
         </div>
       )}
-
-      {message.role === 'assistant' && (
+      {uiMessage.role === 'assistant' && (
         <div className="flex flex-col space-y-9 lg:space-y-0 lg:flex-row lg:justify-between lg:space-x-9">
           <div
             ref={dividerRef}
             className="flex flex-col space-y-6 w-full lg:w-9/12"
           >
-            {message.sources && message.sources.length > 0 && (
-              <div className="flex flex-col space-y-2">
-                <div className="flex flex-row items-center space-x-2">
-                  <BookCopy className="text-black dark:text-white" size={20} />
-                  <h3 className="text-black dark:text-white font-medium text-xl">
-                    Sources
-                  </h3>
-                </div>
-                <MessageSources sources={message.sources} />
-              </div>
-            )}
             <div className="flex flex-col space-y-2">
               <div className="flex flex-row items-center space-x-2">
                 <Disc3
@@ -162,20 +154,24 @@ const MessageBox = ({
                   )}
                   size={20}
                 />
-                <h3 className="text-black dark:text-white font-medium text-xl">
+                <h3 className="text-black dark:text-white text-xl">
                   Answer
                 </h3>
               </div>
-
-              <Markdown
-                className={cn(
-                  'prose prose-h1:mb-3 prose-h2:mb-2 prose-h2:mt-6 prose-h2:font-[800] prose-h3:mt-4 prose-h3:mb-1.5 prose-h3:font-[600] dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-[400]',
-                  'max-w-none break-words text-black dark:text-white',
-                )}
-                options={markdownOverrides}
-              >
-                {parsedMessage}
-              </Markdown>
+              {uiMessage.parts.map((part, index) => (
+                part.type === 'text' && (
+                  <Markdown
+                    key={index}
+                    className={cn(
+                      'prose prose-h1:mb-3 prose-h2:mb-2 prose-h2:mt-6 prose-h2:font-[800] prose-h3:mt-4 prose-h3:mb-1.5 prose-h3:font-[600] dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-[400]',
+                      'max-w-none break-words text-black dark:text-white',
+                    )}
+                    options={markdownOverrides}
+                  >
+                    {part.text}
+                  </Markdown>
+                )
+              ))}
               {loading && isLast ? null : (
                 <div className="flex flex-row items-center justify-between w-full text-black dark:text-white py-4 -mx-2">
                   <div className="flex flex-row items-center space-x-1">
@@ -246,6 +242,26 @@ const MessageBox = ({
                   </>
                 )}
             </div>
+          </div>
+        </div>
+      )}
+      {message.role === 'assistant' && (
+        <div className="flex flex-col space-y-9 lg:space-y-0 lg:flex-row lg:justify-between lg:space-x-9">
+          <div
+            ref={dividerRef}
+            className="flex flex-col space-y-6 w-full lg:w-9/12"
+          >
+            {message.sources && message.sources.length > 0 && (
+              <div className="flex flex-col space-y-2">
+                <div className="flex flex-row items-center space-x-2">
+                  <BookCopy className="text-black dark:text-white" size={20} />
+                  <h3 className="text-black dark:text-white text-xl">
+                    Sources
+                  </h3>
+                </div>
+                <MessageSources sources={message.sources} />
+              </div>
+            )}
           </div>
           <div className="lg:sticky lg:top-20 flex flex-col items-center space-y-3 w-full lg:w-3/12 z-30 h-full pb-4">
             {/* <SearchImages
