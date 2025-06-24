@@ -1,8 +1,7 @@
 """Format chat history as string."""
 from typing import List
-from langchain_core.messages import BaseMessage
 
-def format_chat_history_as_string(history: List[BaseMessage]) -> str:
+def format_chat_history_as_string(history: List[any]) -> str:
     """Format chat history as string.
     
     Args:

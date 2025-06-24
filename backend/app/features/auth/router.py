@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.database import get_app_session
+from app.depends import get_app_db_session
 from app.db.schemas import Token, UserCreate, User
 from app.features.auth.service import AuthService
 from app.features.auth.google import GoogleOAuth2
@@ -18,7 +18,7 @@ google_oauth = GoogleOAuth2()
 
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_app_session)
+    db: AsyncSession = Depends(get_app_db_session)
 ) -> Optional[User]:
     if not token:
         return None
@@ -51,7 +51,7 @@ async def get_current_user(
 @router.post("/register", response_model=User)
 async def register(
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_app_session)
+    db: AsyncSession = Depends(get_app_db_session)
 ):
     auth_service = AuthService(db)
     return await auth_service.create_user(user_data)
@@ -59,7 +59,7 @@ async def register(
 @router.post("/token", response_model=Token)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_app_session)
+    db: AsyncSession = Depends(get_app_db_session)
 ):
     auth_service = AuthService(db)
     user = await auth_service.authenticate_user(form_data.username, form_data.password)
@@ -90,7 +90,7 @@ async def google_login():
 @router.get("/google/callback")
 async def google_callback(
     code: str,
-    db: AsyncSession = Depends(get_app_session)
+    db: AsyncSession = Depends(get_app_db_session)
 ):
     """Handle Google OAuth2 callback"""
     # Get access token from Google
@@ -130,7 +130,7 @@ async def google_callback(
 @router.post("/anonymous", response_model=Token)
 async def create_anonymous_session(
     user_data: Optional[UserCreate] = None,
-    db: AsyncSession = Depends(get_app_session)
+    db: AsyncSession = Depends(get_app_db_session)
 ):
     """Create an anonymous user session"""
     auth_service = AuthService(db)
@@ -152,7 +152,7 @@ async def create_anonymous_session(
 async def convert_anonymous_to_regular(
     user_data: UserCreate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_app_session)
+    db: AsyncSession = Depends(get_app_db_session)
 ):
     """Convert an anonymous user to a regular user"""
     if not current_user or not current_user.is_anonymous:

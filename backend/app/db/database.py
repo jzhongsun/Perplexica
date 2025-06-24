@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
 )
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 import os
 from contextlib import asynccontextmanager
 
@@ -41,9 +41,14 @@ def get_user_engine(user_id: str):
         db_url = get_user_db_url(user_id)
         user_engines[user_id] = create_async_engine(
             db_url,
-            poolclass=NullPool,
+            poolclass=StaticPool,
+            pool_pre_ping=True,
+            pool_recycle=300,
             echo=settings.SQL_DEBUG,
             json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
+            connect_args={
+                "check_same_thread": False,
+            },
         )
     return user_engines[user_id]
 
@@ -55,9 +60,14 @@ def get_app_engine():
         db_url = get_app_db_url()
         app_engine = create_async_engine(
             db_url,
-            poolclass=NullPool,
+            poolclass=StaticPool,
+            pool_pre_ping=True,
+            pool_recycle=300,
             echo=settings.SQL_DEBUG,
             json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
+            connect_args={
+                "check_same_thread": False,
+            },
         )
     return app_engine
 
@@ -119,3 +129,19 @@ async def get_app_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
+
+async def close_db_connections():
+    """Close all database connections. Call this during application shutdown."""
+    global app_engine
+    
+    # Close user engines
+    for engine in user_engines.values():
+        await engine.dispose()
+    user_engines.clear()
+    user_session_factories.clear()
+    
+    # Close app engine
+    if app_engine:
+        await app_engine.dispose()
+        app_engine = None

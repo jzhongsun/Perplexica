@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import dotenv
 from app.api.v1.router import router as api_v1_router
 from app.db.init_db import init_app_db
+from app.db.database import close_db_connections
 from app.features.chat.router_stream import router as chat_stream_router
 
 dotenv.load_dotenv()
@@ -20,24 +21,36 @@ async def lifespan(app: FastAPI):
     await init_app_db()
     yield
     logger.info("Shutting down...")
+    await close_db_connections()
 
 
-app = FastAPI(
-    title="Perplexica API",
-    description="Backend API for Perplexica chat application",
-    version="1.0.0",
-    lifespan=lifespan
-)
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(
+        title="Perplexica API",
+        description="AI-powered search and chat API",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
+    
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # Include routers
+    app.include_router(api_v1_router, prefix="/api/v1")
+    app.include_router(chat_stream_router, prefix="/api/v1")
+    
+    return app
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# Include API v1 router
-app.include_router(api_v1_router, prefix="/api/v1") 
-app.include_router(chat_stream_router, prefix="/api") 
+app = create_app()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 

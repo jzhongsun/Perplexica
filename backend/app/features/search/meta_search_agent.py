@@ -6,13 +6,6 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-from langchain_core.messages import BaseMessage
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.embeddings import Embeddings
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableMap, RunnableSequence
-
 from app.core.utils.compute_similarity import compute_similarity
 from app.core.utils.format_history import format_chat_history_as_string
 from app.features.searxng import search_searxng

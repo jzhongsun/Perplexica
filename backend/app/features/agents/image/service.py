@@ -1,7 +1,5 @@
 from typing import Optional, List
 from googleapiclient.discovery import build
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
 
 from app.core.config import get_settings
 from app.features.prompts.service import PromptService

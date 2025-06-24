@@ -15,23 +15,26 @@ from loguru import logger
 class UserDbService:
     """Service for database operations."""
 
-    def __init__(self, session: AsyncSession, user_id: str):
+    def __init__(self, session: AsyncSession, user_id: str, manage_session: bool = False):
         self.session = session
         self.user_id = user_id
+        self.manage_session = manage_session  # Whether this service should manage the session lifecycle
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            await self.session.rollback()
-        await self.session.close()
+        # Only manage session if explicitly told to do so
+        if self.manage_session:
+            if exc_type is not None:
+                await self.session.rollback()
+            await self.session.close()
 
     @classmethod
     async def create(cls, user_id: str) -> "UserDbService":
         """Create a new UserDbService instance with a managed session."""
         async with get_user_session(user_id) as session:
-            return cls(session, user_id)
+            return cls(session, user_id, manage_session=False)  # Session is managed by context manager
 
     @classmethod
     async def ensure_user_db_initialized(cls, user_id: str):

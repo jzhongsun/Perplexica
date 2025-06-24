@@ -143,7 +143,7 @@ def is_data_ui_message_stream_part(part: UIMessageStreamPart) -> bool:
 DATA_TYPES = TypeVar("DATA_TYPES", bound=UIDataTypes)
 
 
-class DataUIMessageStreamPart(Generic[DATA_TYPES], BaseModel):
+class DataUIMessageStreamPart(BaseModel, Generic[DATA_TYPES]):
     type: str  # Will be validated to start with 'data-'
     id: Optional[str] = None
     data: DATA_TYPES

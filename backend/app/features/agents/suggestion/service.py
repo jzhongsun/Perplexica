@@ -1,6 +1,4 @@
 from typing import List, Optional
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
 import json
 
 from app.core.config import get_settings
