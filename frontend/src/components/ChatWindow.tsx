@@ -8,10 +8,9 @@ import Link from 'next/link';
 import NextError from 'next/error';
 import { UIMessage } from 'ai';
 import { TextUIPart } from 'ai';
-import { useChat } from '@ai-sdk/react';
+import { useChat, UseChatHelpers } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useTranslation } from 'react-i18next';
-import { type ChatData } from '@/lib/context/ChatContext';
 import { Chat as ChatType, ChatMessageMeta } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { v4 as uuidv4 } from 'uuid';
@@ -58,16 +57,11 @@ const checkConfig = async (
   }
 };
 
-const ChatWindow = ({ id, initialChat, initialChatData }: { 
-  id: string,
-  initialChat?: ChatType,
-  initialChatData?: ChatData,
+const ChatWindow = ({ chat, initialMessage }: {
+  chat: ChatType,
+  initialMessage: string | null,
 }) => {
   const { t } = useTranslation();
-  const [chatId, setChatId] = useState<string>(id);
-  const [chat, setChat] = useState<ChatType | undefined>(initialChat);
-  const [chatData] = useState<ChatData | undefined>(initialChatData);
-  const [newChatCreated, setNewChatCreated] = useState(false);
   const [isConfigReady, setIsConfigReady] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -76,96 +70,19 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
   const [notFound, setNotFound] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
-  
-  const initializationRef = useRef(false);  
+
+  const initializationRef = useRef(false);
 
   const transport = new DefaultChatTransport({
     api: 'http://localhost:8000/api/v1/chat-stream'
   });
-  
+
+  // Move useChat to top level - this is the fix for the Rules of Hooks violation
   const chatHelper = useChat<UIMessage<ChatMessageMeta>>({
-    id: chatId,
+    id: chat.id,
     transport: transport,
     experimental_throttle: 100
   });
-
-  // Handle config initialization
-  useEffect(() => {
-    if (!isConfigReady && !hasError) {
-      checkConfig(setIsConfigReady, setHasError, t);
-    }
-  }, [isConfigReady, hasError, t]);
-
-  // Handle chat initialization
-  useEffect(() => {
-    const initializeChat = async () => {
-      if (initializationRef.current || loading || !isConfigReady) {
-        return;
-      }
-
-      try {
-        initializationRef.current = true;
-        setLoading(true);
-
-        if (!chat && chatData) {
-          // Create new chat
-          const createdChat = await api.chat.createChat({
-            messages: [],
-            focusMode: chatData.focusMode,
-            optimizationMode: chatData.optimizationMode,
-            files: chatData.files.map(file => ({
-              name: file.fileName,
-              fileId: file.fileId,
-            })),
-          });
-          setNewChatCreated(true);
-          setChat(createdChat);
-          setChatId(createdChat.id);
-          setFiles(chatData.files);
-          setFileIds(chatData.files.map(file => file.fileId));
-        } 
-        if (!chat) {
-          // Fetch existing chat
-          const fetchedChat = await api.chat.getChat(chatId!);
-          setChat(fetchedChat.chat);
-        }
-        // Convert API files to File type
-        const newFiles = chat?.files.map(apiFile => ({
-          fileName: apiFile.name || '',
-          fileExtension: (apiFile.name || '').split('.').pop() || '',
-          fileId: apiFile.fileId || '',
-        }));
-
-        setFiles(newFiles ?? []);
-        setFileIds(newFiles?.map(file => file.fileId) ?? []);
-
-        if (!newChatCreated) {
-          const fetchedMessages = await api.chat.fetchMessagesOfChat(chatId!);
-          chatHelper.setMessages(fetchedMessages.messages);
-          console.log("fetchedMessages", chatId, fetchedMessages, chatHelper.messages);
-        }
-        setIsMessagesLoaded(true);
-      } catch (error) {
-        console.error('Error initializing chat:', error);
-        toast.error(t('chat.error.initError'));
-        setHasError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeChat();
-  }, [chatId, isConfigReady]);
-
-  // Update ready state
-  useEffect(() => {
-    if (isMessagesLoaded && isConfigReady) {
-      setIsReady(true);
-      console.debug(new Date(), 'app:ready');
-    } else {
-      setIsReady(false);
-    }
-  }, [isMessagesLoaded, isConfigReady]);
 
   const sendMessage = async (message: string, messageId?: string) => {
     if (loading) return;
@@ -188,12 +105,75 @@ const ChatWindow = ({ id, initialChat, initialChatData }: {
     }, {
       body: {
         options: {
-          optimization_mode: chatData?.optimizationMode,
-          focus_mode: chatData?.focusMode,
+          optimizationMode: chat?.optimizationMode,
+          focusMode: chat?.focusMode,
         }
       }
     });
   };
+
+  // Handle config initialization
+  useEffect(() => {
+    if (!isConfigReady && !hasError) {
+      checkConfig(setIsConfigReady, setHasError, t);
+    }
+  }, [isConfigReady, hasError, t]);
+
+  // Handle chat initialization
+  useEffect(() => {
+    const initializeChat = async () => {
+      console.log("initializeChat", chat);
+
+      if (!chat || initializationRef.current || loading || !isConfigReady) {
+        return;
+      }
+
+      try {
+        initializationRef.current = true;
+        setLoading(true);
+
+        // Convert API files to File type
+        const newFiles = chat?.files.map(apiFile => ({
+          fileName: apiFile.name || '',
+          fileExtension: (apiFile.name || '').split('.').pop() || '',
+          fileId: apiFile.fileId || '',
+        }));
+
+        setFiles(newFiles ?? []);
+        setFileIds(newFiles?.map(file => file.fileId) ?? []);
+
+        const fetchedMessages = await api.chat.fetchMessagesOfChat(chat.id);
+        chatHelper.setMessages(fetchedMessages.messages);
+        console.log("fetchedMessages", chat.id, fetchedMessages, chatHelper.messages);
+        setIsMessagesLoaded(true);
+
+        if (initialMessage) {
+          sendMessage(initialMessage);
+        }
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+        toast.error(t('chat.error.initError'));
+        setHasError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (chat && isConfigReady) {
+      initializeChat();
+    }
+  }, [chat, isConfigReady, t]);
+
+  // Update ready state
+  useEffect(() => {
+    if (isMessagesLoaded && isConfigReady) {
+      setIsReady(true);
+      console.debug(new Date(), 'app:ready');
+    } else {
+      setIsReady(false);
+    }
+  }, [isMessagesLoaded, isConfigReady]);
+
   const rewrite = (messageId: string) => {
     const index = chatHelper.messages.findIndex((msg) => msg.id === messageId);
     if (index === -1) return;

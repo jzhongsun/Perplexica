@@ -23,6 +23,18 @@ export interface Chat {
   updatedAt: string;
 }
 
+export interface ChatRequestOptions {
+  focusMode: string;
+  optimizationMode: string;
+}
+
+export interface ChatRequest {
+  chatId: string;
+  title?: string;
+  messages?: UIMessage[];
+  options?: ChatRequestOptions;
+}
+
 export interface ChatModel {
   provider: string;
   model: string;

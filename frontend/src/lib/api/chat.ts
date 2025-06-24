@@ -1,5 +1,5 @@
 import { ApiClient } from './client';
-import { Chat, ChatMessageMeta } from './types';
+import { Chat, ChatMessageMeta, ChatRequest } from './types';
 import { UIMessage } from 'ai';
 
 export class ChatApi extends ApiClient {
@@ -19,7 +19,7 @@ export class ChatApi extends ApiClient {
     await this.delete(`/chats/${chatId}`);
   }
 
-  async createChat(chat: Partial<Chat>): Promise<Chat> {
+  async createChat(chat: Partial<ChatRequest>): Promise<{ chat: Chat }> {
     return await this.post('/chats', chat);
   }
 

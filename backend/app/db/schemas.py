@@ -37,7 +37,8 @@ class MessageResponse(MessageBase):
 class ChatBase(BaseModel):
     """Base chat schema."""
     title: str
-    focus_mode: str = Field(..., alias="focusMode")
+    focus_mode: Optional[str] = Field(None, alias="focusMode")
+    optimization_mode: Optional[str] = Field(None, alias="optimizationMode")
     files: List[FileInfo] = []
 
     class Config:

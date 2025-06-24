@@ -68,6 +68,7 @@ class UserDbService:
         query = (
             select(DbChat)
             .where(DbChat.user_id == self.user_id)
+            .order_by(DbChat.created_at.desc())
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())

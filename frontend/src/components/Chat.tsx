@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import MessageInput from './MessageInput';
 import { File } from './ChatWindow';
 import MessageBox from './MessageBox';
@@ -8,6 +8,15 @@ import MessageBoxLoading from './MessageBoxLoading';
 import { UseChatHelpers, UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
 import WorkspacePanel from './WorkspacePanel';
+
+type WorkspacePanelMode = 'hidden' | 'normal' | 'wide' | 'auto';
+
+const PANEL_WIDTHS: Record<WorkspacePanelMode, string> = {
+  hidden: 'w-12', // 48px - just enough for the icon
+  normal: 'w-96', // 384px
+  wide: 'w-1/2', // 50% of container width
+  auto: 'w-1/3', // 33% of container width
+};
 
 const Chat = ({
   loading,
@@ -34,6 +43,7 @@ const Chat = ({
 }) => {
   const dividerRef = useRef<HTMLDivElement | null>(null);
   const messageEnd = useRef<HTMLDivElement | null>(null);
+  const [panelMode, setPanelMode] = useState<WorkspacePanelMode>('normal');
 
   useEffect(() => {
     const scroll = () => {
@@ -49,6 +59,10 @@ const Chat = ({
       scroll();
     }
   }, [messages]);
+
+  const handlePanelModeChange = (mode: WorkspacePanelMode) => {
+    setPanelMode(mode);
+  };
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
@@ -97,10 +111,14 @@ const Chat = ({
       </div>
 
       {/* Right side - Workspace panel */}
-      <div className="w-96 border-l border-gray-200 dark:border-gray-800 overflow-y-auto">
+      <div 
+        className={`${PANEL_WIDTHS[panelMode]} pt-4 overflow-y-auto transition-[width] duration-300 ease-in-out`}
+      >
         <WorkspacePanel 
           messages={messages}
           files={files}
+          mode={panelMode}
+          onModeChange={handlePanelModeChange}
         />
       </div>
     </div>

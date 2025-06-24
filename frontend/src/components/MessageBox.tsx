@@ -10,6 +10,8 @@ import {
   StopCircle,
   Layers3,
   Plus,
+  User,
+  Bot
 } from 'lucide-react';
 import Markdown, { MarkdownToJSX } from 'markdown-to-jsx';
 import Copy from './MessageActions/Copy';
@@ -125,122 +127,132 @@ const MessageBox = ({
       {uiMessage.role === 'user' && (
         <div
           className={cn(
-            'w-full',
+            'w-full flex items-start',
             messageIndex === 0 ? 'pt-8' : 'pt-8',
             'break-words',
           )}
         >
-          {uiMessage.parts.map((part, index) => (
-            part.type === 'text' && (
-              <span key={index} className="text-black dark:text-white font-[400]">
-                {part.text}
-              </span>
-            )
-          ))}
+          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0 mr-4 mt-2">
+            <User size={20} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="min-w-[100px] w-fit bg-blue-50/80 dark:bg-blue-950/20 rounded-lg px-6 py-4 shadow-sm mr-4">
+            {uiMessage.parts.map((part, index) => (
+              part.type === 'text' && (
+                <span key={index} className="text-black dark:text-white font-[400]">
+                  {part.text}
+                </span>
+              )
+            ))}
+          </div>
         </div>
       )}
       {uiMessage.role === 'assistant' && (
-        <div className="flex flex-col space-y-9 lg:space-y-0 lg:flex-row lg:justify-between lg:space-x-9">
-          <div
-            ref={dividerRef}
-            className="flex flex-col space-y-6 w-full"
-          >
-            <div className="flex flex-col space-y-2">
-              <div className="flex flex-row items-center space-x-2">
-                <Disc3
-                  className={cn(
-                    'text-black dark:text-white',
-                    isLast && loading ? 'animate-spin' : 'animate-none',
-                  )}
-                  size={20}
-                />
-                <h3 className="text-black dark:text-white text-xl">
-                  Answer
-                </h3>
-              </div>
-              {uiMessage.parts.map((part, index) => (
-                part.type === 'text' && (
-                  <Markdown
-                    key={index}
+        <div className="w-full flex items-start">
+          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center flex-shrink-0 mr-4 mt-2">
+            <Bot size={20} className="text-purple-600 dark:text-purple-400" />
+          </div>
+          <div className="min-w-[100px] w-fit mr-4">
+            <div
+              ref={dividerRef}
+              className="w-full bg-gray-50/80 dark:bg-gray-900/20 rounded-lg px-6 py-4 shadow-sm"
+            >
+              <div className="flex flex-col space-y-2">
+                <div className="flex flex-row items-center space-x-2">
+                  <Disc3
                     className={cn(
-                      'prose prose-h1:mb-3 prose-h2:mb-2 prose-h2:mt-6 prose-h2:font-[800] prose-h3:mt-4 prose-h3:mb-1.5 prose-h3:font-[600] dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-[400]',
-                      'max-w-none break-words text-black dark:text-white',
+                      'text-black dark:text-white',
+                      isLast && loading ? 'animate-spin' : 'animate-none',
                     )}
-                    options={markdownOverrides}
-                  >
-                    {part.text}
-                  </Markdown>
-                )
-              ))}
-              {loading && isLast ? null : (
-                <div className="flex flex-row items-center justify-between w-full text-black dark:text-white py-4 -mx-2">
-                  <div className="flex flex-row items-center space-x-1">
-                    {/*  <button className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black text-black dark:hover:text-white">
-                      <Share size={18} />
-                    </button> */}
-                    <Rewrite rewrite={rewrite} messageId={message.messageId} />
-                  </div>
-                  <div className="flex flex-row items-center space-x-1">
-                    <Copy initialMessage={message.content} message={message} />
-                    <button
-                      onClick={() => {
-                        if (speechStatus === 'started') {
-                          stop();
-                        } else {
-                          start();
-                        }
-                      }}
-                      className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black dark:hover:text-white"
-                      title={speechStatus === 'started' ? t('chat.message.stopSpeaking') : t('chat.message.speak')}
-                    >
-                      {speechStatus === 'started' ? (
-                        <StopCircle size={18} />
-                      ) : (
-                        <Volume2 size={18} />
-                      )}
-                    </button>
-                  </div>
+                    size={20}
+                  />
+                  <h3 className="text-black dark:text-white text-xl">
+                    Answer
+                  </h3>
                 </div>
-              )}
-              {isLast &&
-                message.suggestions &&
-                message.suggestions.length > 0 &&
-                message.role === 'assistant' &&
-                !loading && (
-                  <>
-                    <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
-                    <div className="flex flex-col space-y-3 text-black dark:text-white">
-                      <div className="flex flex-row items-center space-x-2 mt-4">
-                        <Layers3 />
-                        <h3 className="text-xl font-medium">Related</h3>
-                      </div>
-                      <div className="flex flex-col space-y-3">
-                        {message.suggestions.map((suggestion, i) => (
-                          <div
-                            className="flex flex-col space-y-3 text-sm"
-                            key={i}
-                          >
-                            <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
-                            <div
-                              onClick={() => {
-                                sendMessage(suggestion);
-                              }}
-                              className="cursor-pointer flex flex-row justify-between font-medium space-x-2 items-center"
-                            >
-                              <p className="transition duration-200 hover:text-[#24A0ED]">
-                                {suggestion}
-                              </p>
-                              <Plus
-                                size={20}
-                                className="text-[#24A0ED] flex-shrink-0"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                {uiMessage.parts.map((part, index) => (
+                  part.type === 'text' && (
+                    <Markdown
+                      key={index}
+                      className={cn(
+                        'prose prose-h1:mb-3 prose-h2:mb-2 prose-h2:mt-6 prose-h2:font-[800] prose-h3:mt-4 prose-h3:mb-1.5 prose-h3:font-[600] dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-[400]',
+                        'max-w-none break-words text-black dark:text-white',
+                      )}
+                      options={markdownOverrides}
+                    >
+                      {part.text}
+                    </Markdown>
+                  )
+                ))}
+                {loading && isLast ? null : (
+                  <div className="flex flex-row items-center justify-between w-full text-black dark:text-white py-4 -mx-2">
+                    <div className="flex flex-row items-center space-x-1">
+                      {/*  <button className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black text-black dark:hover:text-white">
+                        <Share size={18} />
+                      </button> */}
+                      <Rewrite rewrite={rewrite} messageId={message.messageId} />
                     </div>
-                  </>
+                    <div className="flex flex-row items-center space-x-1">
+                      <Copy initialMessage={message.content} message={message} />
+                      <button
+                        onClick={() => {
+                          if (speechStatus === 'started') {
+                            stop();
+                          } else {
+                            start();
+                          }
+                        }}
+                        className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black dark:hover:text-white"
+                        title={speechStatus === 'started' ? t('chat.message.stopSpeaking') : t('chat.message.speak')}
+                      >
+                        {speechStatus === 'started' ? (
+                          <StopCircle size={18} />
+                        ) : (
+                          <Volume2 size={18} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 )}
+                {isLast &&
+                  message.suggestions &&
+                  message.suggestions.length > 0 &&
+                  message.role === 'assistant' &&
+                  !loading && (
+                    <>
+                      <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
+                      <div className="flex flex-col space-y-3 text-black dark:text-white">
+                        <div className="flex flex-row items-center space-x-2 mt-4">
+                          <Layers3 />
+                          <h3 className="text-xl font-medium">Related</h3>
+                        </div>
+                        <div className="flex flex-col space-y-3">
+                          {message.suggestions.map((suggestion, i) => (
+                            <div
+                              className="flex flex-col space-y-3 text-sm"
+                              key={i}
+                            >
+                              <div className="h-px w-full bg-light-secondary dark:bg-dark-secondary" />
+                              <div
+                                onClick={() => {
+                                  sendMessage(suggestion);
+                                }}
+                                className="cursor-pointer flex flex-row justify-between font-medium space-x-2 items-center"
+                              >
+                                <p className="transition duration-200 hover:text-[#24A0ED]">
+                                  {suggestion}
+                                </p>
+                                <Plus
+                                  size={20}
+                                  className="text-[#24A0ED] flex-shrink-0"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+              </div>
             </div>
           </div>
         </div>

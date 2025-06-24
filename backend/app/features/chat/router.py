@@ -6,7 +6,10 @@ from .service import ChatService
 from .schemas import (
     ChatListResponse,
     ChatHistory,
-    MessagesResponse
+    ChatMetadata,
+    ChatRequest,
+    MessagesResponse,
+    ChatResponse
 )
 from app.depends import get_chat_service
 from app.core.ui_messages import UIMessage
@@ -19,6 +22,15 @@ async def list_chats(
     """List all chats."""
     response = await chat_service.list_chats()
     return ChatListResponse(chats=response, status=200)
+
+@router.post("", response_model=ChatHistory)
+async def create_chat(
+    chatRequest: ChatRequest,
+    chat_service: ChatService = Depends(get_chat_service)
+) -> ChatHistory:
+    """Get chat metadata by ID."""
+    return await chat_service.create_chat(chatRequest)
+
 
 @router.get("/{chat_id}", response_model=ChatHistory)
 async def get_chat(

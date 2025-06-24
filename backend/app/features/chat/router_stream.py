@@ -12,7 +12,7 @@ from loguru import logger
 import traceback
 
 from .service import ChatService
-from .schemas import ChatRequest
+from .schemas import ChatStreamRequest, ChatRequest
 from ...core.utils.messages import (
     a2a_message_to_ui_message_stream_parts,
 )
@@ -27,17 +27,22 @@ router = APIRouter(prefix="/chat-stream", tags=["chat"])
 
 @router.post("", response_class=EventSourceResponse)
 async def handle_chat_stream(
-    request: ChatRequest,
+    request: ChatStreamRequest,
     chat_service: ChatService = Depends(get_chat_service),
-    user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """Create a new chat with streaming response."""
     
-    chat_id = request.chat_id
+    chat_id = request.id
     if chat_id is None or len(chat_id) == 0:
         chat_id = str(uuid.uuid4())
-        request.chat_id = chat_id
-        chat = await chat_service.create_chat(request)
+        request.id = chat_id
+        chat = await chat_service.create_chat(ChatRequest(
+            chatId=chat_id,
+            messages=request.messages,
+            options=request.options,
+            files=request.files,
+        ))
     else:
         chat = await chat_service.get_chat(chat_id)
         if chat is None:
