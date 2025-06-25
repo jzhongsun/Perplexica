@@ -71,8 +71,6 @@ const ChatWindow = ({ chat, initialMessage }: {
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
 
-  const initializationRef = useRef(false);
-
   const transport = new DefaultChatTransport({
     api: 'http://localhost:8000/api/v1/chat-stream'
   });
@@ -110,6 +108,7 @@ const ChatWindow = ({ chat, initialMessage }: {
         }
       }
     });
+    setLoading(false);
   };
 
   // Handle config initialization
@@ -124,12 +123,11 @@ const ChatWindow = ({ chat, initialMessage }: {
     const initializeChat = async () => {
       console.log("initializeChat", chat);
 
-      if (!chat || initializationRef.current || loading || !isConfigReady) {
+      if (!chat || loading || !isConfigReady) {
         return;
       }
 
       try {
-        initializationRef.current = true;
         setLoading(true);
 
         // Convert API files to File type
@@ -162,7 +160,7 @@ const ChatWindow = ({ chat, initialMessage }: {
     if (chat && isConfigReady) {
       initializeChat();
     }
-  }, [chat, isConfigReady, t]);
+  }, [chat, isConfigReady]);
 
   // Update ready state
   useEffect(() => {

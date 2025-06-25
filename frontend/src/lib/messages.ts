@@ -14,7 +14,7 @@ export const extractUIMessageTextContent = (uiMessage: UIMessage): string => {
 }
 
 export const convertUIMessageToMessage = (uiMessage: UIMessage): Message => {
-    console.log('convertUIMessageToMessage', uiMessage);
+    // console.log('convertUIMessageToMessage', uiMessage);
     let content = '';
     const sources: Document[] = [];
     if (!uiMessage || !uiMessage.parts) {

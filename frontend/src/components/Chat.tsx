@@ -69,7 +69,7 @@ const Chat = ({
       {/* Left side - Chat area */}
       <div className="flex-1 min-w-0 relative">
         <div className="absolute inset-0 overflow-y-auto">
-          <div className="flex flex-col space-y-6 pt-8 pb-32 sm:mx-4 md:mx-8">
+          <div className="flex flex-col space-y-6 pb-4 sm:mx-4 md:mx-8">
             {messages.map((msg, i) => {
               const isLast = i === messages.length - 1;
 

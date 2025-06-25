@@ -128,17 +128,17 @@ const MessageBox = ({
         <div
           className={cn(
             'w-full flex items-start',
-            messageIndex === 0 ? 'pt-8' : 'pt-8',
+            messageIndex === 0 ? 'pt-8' : 'pt-4',
             'break-words',
           )}
         >
           <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0 mr-4 mt-2">
             <User size={20} className="text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="min-w-[100px] w-fit bg-blue-50/80 dark:bg-blue-950/20 rounded-lg px-6 py-4 shadow-sm mr-4">
+          <div className="min-w-[100px] w-fit bg-blue-50/80 dark:bg-blue-950/20 rounded-lg pr-6 py-4 shadow-sm mr-4">
             {uiMessage.parts.map((part, index) => (
               part.type === 'text' && (
-                <span key={index} className="text-black dark:text-white font-[400]">
+                <span key={uiMessage + "_" + index} className="text-black dark:text-white font-[400]">
                   {part.text}
                 </span>
               )
@@ -148,7 +148,7 @@ const MessageBox = ({
       )}
       {uiMessage.role === 'assistant' && (
         <div className="w-full flex items-start">
-          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center flex-shrink-0 mr-4 mt-2">
+          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center flex-shrink-0 mr-4 mt-4">
             <Bot size={20} className="text-purple-600 dark:text-purple-400" />
           </div>
           <div className="min-w-[100px] w-fit mr-4">
