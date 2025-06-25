@@ -86,7 +86,9 @@ const TopNav = ({
   const headerContent = (
     <div className="flex items-center gap-x-3">
       {icon}
-      {title}
+      <div className="text-lg px-2">
+        {title}
+      </div>
     </div>
   );
 
@@ -110,7 +112,7 @@ const TopNav = ({
               <div className="absolute top-0 -mt-4 h-1 w-full rounded-b-lg bg-black dark:bg-white" />
             )}
             <link.icon aria-hidden="true" />
-            <p className="text-xs">{link.label}</p>
+            <p className="text-xl pl-4">{link.label}</p>
           </Link>
         ))}
       </div>

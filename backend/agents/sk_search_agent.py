@@ -371,7 +371,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
             temperature=0.0)
         logger.info(f"invoke_stream for {kernel} \n chat_history = {chat_history.model_dump_json(indent=2)} \n settings = {settings.model_dump_json(indent=2, exclude_none=True)}.")
         async for message_content_chunk in inner_chat_completion_service.get_streaming_chat_message_content(chat_history=chat_history, settings=settings, kernel=kernel):
-            print(f"{type(message_content_chunk)}: {message_content_chunk.model_dump_json(indent=2, exclude_none=True)}")
+            logger.info(f"{type(message_content_chunk)}: {message_content_chunk.model_dump_json(indent=2, exclude_none=True)}")
             role = message_content_chunk.role
             if (
                 role == AuthorRole.ASSISTANT
@@ -427,11 +427,4 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
         fields, kernel = cls._normalize_spec_fields(
             data, kernel=kernel, plugins=plugins, **kwargs
         )
-
-        if "service" in kwargs:
-            fields["service"] = kwargs["service"]
-
-        if "function_choice_behavior" in kwargs:
-            fields["function_choice_behavior"] = kwargs["function_choice_behavior"]
-
         return cls(**fields, kernel=kernel)

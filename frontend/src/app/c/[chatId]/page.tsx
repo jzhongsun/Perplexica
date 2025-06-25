@@ -122,7 +122,7 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
           </span>
         </div>
         {chat && (
-          <>
+          <div className='pl-4 flex flex-row items-center gap-x-6'>
             <div className="flex items-center gap-x-2 text-gray-600 dark:text-gray-300">
               <Clock className="w-4 h-4" />
               <span className="text-xs">{timeAgo} ago</span>
@@ -135,7 +135,7 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
               <Zap className="w-4 h-4" />
               <span className="text-xs capitalize">{chat?.optimizationMode}</span>
             </div>
-          </>
+          </div>
         )}
       </div>
       <div className="flex items-center ml-auto pl-6">
@@ -161,7 +161,7 @@ const Page = ({ params }: { params: Promise<{ chatId: string }> }) => {
 
   return (
     <TopNav
-      icon={<MessageSquare className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />}
+      icon={<MessageSquare size={32} className="w-5 h-5 text-blue-600 dark:text-blue-500" />}
       title={headerContent}
     >
       {isLoading ? (

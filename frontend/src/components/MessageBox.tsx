@@ -11,7 +11,7 @@ import {
   Layers3,
   Plus,
   User,
-  Bot
+  SquareTerminal
 } from 'lucide-react';
 import Markdown, { MarkdownToJSX } from 'markdown-to-jsx';
 import Copy from './MessageActions/Copy';
@@ -148,8 +148,8 @@ const MessageBox = ({
       )}
       {uiMessage.role === 'assistant' && (
         <div className="w-full flex items-start">
-          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center flex-shrink-0 mr-4 mt-4">
-            <Bot size={20} className="text-purple-600 dark:text-purple-400" />
+          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-green-900  flex items-center justify-center flex-shrink-0 mr-4 mt-4">
+            <SquareTerminal size={20} className="text-purple-600 dark:text-green-400" />
           </div>
           <div className="min-w-[100px] w-fit mr-4">
             <div
