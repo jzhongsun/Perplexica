@@ -7,13 +7,13 @@ import { convertUIMessageToMessage } from '@/lib/messages';
 export type WorkspacePanelMode = 'hidden' | 'normal' | 'wide' | 'auto';
 
 interface WorkspacePanelProps {
-  messages: UIMessage[];
+  // messages: UIMessage[];
   files: File[];
   mode: WorkspacePanelMode;
   onModeChange: (mode: WorkspacePanelMode) => void;
 }
 
-const WorkspacePanel = ({ messages, files, mode, onModeChange }: WorkspacePanelProps) => {
+const WorkspacePanel = ({ files, mode, onModeChange }: WorkspacePanelProps) => {
   const nextMode: Record<WorkspacePanelMode, WorkspacePanelMode> = {
     hidden: 'normal',
     normal: 'wide',
@@ -88,7 +88,7 @@ const WorkspacePanel = ({ messages, files, mode, onModeChange }: WorkspacePanelP
           )}
 
           {/* Messages Context */}
-          {messages.length > 0 && (
+          {/* {messages.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -113,7 +113,7 @@ const WorkspacePanel = ({ messages, files, mode, onModeChange }: WorkspacePanelP
                 })}
               </div>
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </div>

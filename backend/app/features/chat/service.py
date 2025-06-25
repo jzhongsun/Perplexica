@@ -12,6 +12,7 @@ from app.db.schemas import ChatCreate, User
 from fastapi import HTTPException
 
 from app.db.service import UserDbService
+
 # from app.features.search import get_search_handler
 from .schemas import (
     ChatRequest,
@@ -53,6 +54,38 @@ FOCUS_MODE_2_AGENT_URL = {
     "web_search_and_answer_with_files_and_context": f"{A2A_BASE_AGENT_URL}/web_search_and_answer_with_files_and_context/",
 }
 
+CONTEXTUAL_QUERY_PROMPT_TEMPLATE = """
+## Conversation context information is below.
+
+<conversation_context>
+{context}
+</conversation_context>
+
+Given the context information and the current query, provide a relevant response. The conversation history is provided for reference to maintain context and coherence.
+
+## Follow these rules:
+
+1. Use the conversation context only when it's relevant to the current query.
+2. If the query is unrelated to the conversation history, focus solely on answering the query.
+3. Avoid unnecessary references like "Based on the context..." or "The provided information...".
+
+## Query: 
+<query>
+{query}
+</query>
+
+Answer:
+"""
+
+EMPTY_QUERY_PROMPT_TEMPLATE = """
+Query: 
+<query>
+{query}
+</query>
+
+Answer:
+"""
+
 
 class ChatService:
     """Chat service class."""
@@ -89,6 +122,46 @@ class ChatService:
         )
         return a2a_client
 
+    async def build_message_with_history(
+        self, chat_id: str, user_message: a2a_types.Message
+    ) -> a2a_types.Message:
+        messages_response = await self.fetch_messages_of_chat(
+            chat_id=chat_id, offset=0, limit=4
+        )
+        if messages_response is None:
+            return user_message
+
+        context = ""
+        for message in messages_response.messages:
+            if message.role == "user":
+                context += f"\n<user>\n{message.content()}\n</user>\n"
+            elif message.role == "assistant":
+                context += f"\n<assistant>\n{message.content()}\n</assistant>\n"
+
+        user_message_content = ""
+        for part in user_message.parts:
+            if isinstance(part.root, a2a_types.TextPart):
+                user_message_content += part.root.text
+
+        if len(context) == 0:
+            return user_message
+        else:
+            return a2a_types.Message(
+                messageId=user_message.messageId,
+                parts=[
+                    a2a_types.TextPart(
+                        text=CONTEXTUAL_QUERY_PROMPT_TEMPLATE.format(
+                            context=context, query=user_message_content
+                        )
+                    )
+                ],
+                role=a2a_types.Role.user,
+                metadata=user_message.metadata,
+                taskId=user_message.taskId,
+                contextId=user_message.contextId,
+                extensions=user_message.extensions,
+            )
+
     async def chat_stream(
         self, chat_id: str, messages: List[UIMessage], options: Dict[str, Any] = {}
     ) -> AsyncGenerator[a2a_types.SendStreamingMessageResponse, None]:
@@ -102,11 +175,13 @@ class ChatService:
 
         request_id = str(uuid.uuid4())
         user_message = ui_message_to_a2a_message(messages[-1], chat_id)
+        final_user_message = await self.build_message_with_history(chat_id, user_message)
+
         stream = agent_client.send_message_streaming(
             request=a2a_types.SendStreamingMessageRequest(
                 id=request_id,
                 params=a2a_types.MessageSendParams(
-                    message=user_message,
+                    message=final_user_message,
                     metadata={},
                 ),
             )
@@ -217,8 +292,12 @@ class ChatService:
                 ChatCreate(
                     id=request.chatId if request.chatId else str(uuid.uuid4()),
                     title=request.title if request.title else "New chat",
-                    focus_mode=request.options.focusMode if request.options else "web_search",
-                    optimization_mode=request.options.optimizationMode if request.options else "speed",
+                    focus_mode=(
+                        request.options.focusMode if request.options else "web_search"
+                    ),
+                    optimization_mode=(
+                        request.options.optimizationMode if request.options else "speed"
+                    ),
                     files=request.files if request.files else [],
                     userId=self.user.id,
                 )

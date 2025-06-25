@@ -49,12 +49,12 @@ const MessageBox = ({
   sendMessage: (message: string) => void;
 }) => {
   const { t } = useTranslation();
-  const message = convertUIMessageToMessage(uiMessage);
   // const lastUserMessage = uiMessage.role === 'assistant' ? convertUIMessageToMessage(history[messageIndex - 1]) : message;
-  const [parsedMessage, setParsedMessage] = useState(message.content);
-  const [speechMessage, setSpeechMessage] = useState(message.content);
+  const [parsedMessage, setParsedMessage] = useState('');
+  const [speechMessage, setSpeechMessage] = useState('');
 
   useEffect(() => {
+    const message = convertUIMessageToMessage(uiMessage);
     const citationRegex = /\[([^\]]+)\]/g;
     const regex = /\[(\d+)\]/g;
     let processedMessage = message.content;
@@ -110,7 +110,7 @@ const MessageBox = ({
 
     setSpeechMessage(message.content.replace(regex, ''));
     setParsedMessage(processedMessage);
-  }, [message.content, message.sources, message.role]);
+  }, [uiMessage]);
 
   const { speechStatus, start, stop } = useSpeech({ text: speechMessage });
 
@@ -135,7 +135,7 @@ const MessageBox = ({
           <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0 mr-4 mt-2">
             <User size={20} className="text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="min-w-[100px] w-fit bg-blue-50/80 dark:bg-blue-950/20 rounded-lg pr-6 py-4 shadow-sm mr-4">
+          <div className="min-w-[100px] w-fit bg-blue-50/80 dark:bg-blue-950/20 rounded-lg px-6 pr-6 py-4 shadow-sm mr-4">
             {uiMessage.parts.map((part, index) => (
               part.type === 'text' && (
                 <span key={uiMessage + "_" + index} className="text-black dark:text-white font-[400]">
@@ -157,6 +157,7 @@ const MessageBox = ({
               className="w-full bg-gray-50/80 dark:bg-gray-900/20 rounded-lg px-6 py-4 shadow-sm"
             >
               <div className="flex flex-col space-y-2">
+                {isLast && loading && (
                 <div className="flex flex-row items-center space-x-2">
                   <Disc3
                     className={cn(
@@ -166,9 +167,9 @@ const MessageBox = ({
                     size={20}
                   />
                   <h3 className="text-black dark:text-white text-xl">
-                    Answer
+                    Answering...
                   </h3>
-                </div>
+                </div>)}
                 {uiMessage.parts.map((part, index) => (
                   part.type === 'text' && (
                     <Markdown
@@ -184,15 +185,15 @@ const MessageBox = ({
                   )
                 ))}
                 {loading && isLast ? null : (
-                  <div className="flex flex-row items-center justify-between w-full text-black dark:text-white py-4 -mx-2">
+                  <div className="flex flex-row items-center justify-between w-full text-black dark:text-white pt-2 -mx-2">
                     <div className="flex flex-row items-center space-x-1">
                       {/*  <button className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black text-black dark:hover:text-white">
                         <Share size={18} />
                       </button> */}
-                      <Rewrite rewrite={rewrite} messageId={message.messageId} />
+                      {/* <Rewrite rewrite={rewrite} messageId={message.messageId} /> */}
                     </div>
                     <div className="flex flex-row items-center space-x-1">
-                      <Copy initialMessage={message.content} message={message} />
+                      {/* <Copy initialMessage={message.content} message={message} /> */}
                       <button
                         onClick={() => {
                           if (speechStatus === 'started') {
@@ -213,7 +214,7 @@ const MessageBox = ({
                     </div>
                   </div>
                 )}
-                {isLast &&
+                {/* {isLast &&
                   message.suggestions &&
                   message.suggestions.length > 0 &&
                   message.role === 'assistant' &&
@@ -251,19 +252,19 @@ const MessageBox = ({
                         </div>
                       </div>
                     </>
-                  )}
+                  )} */}
               </div>
             </div>
           </div>
         </div>
       )}
-      {message.role === 'assistant' && (
+      {uiMessage.role === 'system' && (
         <div className="flex flex-col space-y-9 lg:space-y-0 lg:flex-row lg:justify-between lg:space-x-9">
           <div
             ref={dividerRef}
             className="flex flex-col space-y-6 w-full lg:w-9/12"
           >
-            {message.sources && message.sources.length > 0 && (
+            {/* {message.sources && message.sources.length > 0 && (
               <div className="flex flex-col space-y-2">
                 <div className="flex flex-row items-center space-x-2">
                   <BookCopy className="text-black dark:text-white" size={20} />
@@ -273,7 +274,7 @@ const MessageBox = ({
                 </div>
                 <MessageSources sources={message.sources} />
               </div>
-            )}
+            )} */}
           </div>
           <div className="lg:sticky lg:top-20 flex flex-col items-center space-y-3 w-full lg:w-3/12 z-30 h-full pb-4">
             {/* <SearchImages

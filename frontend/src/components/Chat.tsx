@@ -67,14 +67,15 @@ const Chat = ({
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Left side - Chat area */}
-      <div className="flex-1 min-w-0 relative">
-        <div className="absolute inset-0 overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Messages area - takes remaining space and scrolls */}
+        <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col space-y-6 pb-4 sm:mx-4 md:mx-8">
             {messages.map((msg, i) => {
               const isLast = i === messages.length - 1;
 
               return (
-                <Fragment key={msg.id}>
+                <Fragment key={chat.id + "_" + msg.id}>
                   <MessageBox
                     key={i}
                     uiMessage={msg}
@@ -96,17 +97,17 @@ const Chat = ({
             <div ref={messageEnd} className="h-0" />
           </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0">
-          <div className="mx-auto px-4 py-4">
-            <MessageInput
-              loading={loading}
-              sendMessage={sendMessage}
-              fileIds={fileIds}
-              setFileIds={setFileIds}
-              files={files}
-              setFiles={setFiles}
-            />
-          </div>
+        
+        {/* Message Input - fixed at bottom */}
+        <div className="flex-shrink-0 px-4 py-4 border-t border-light-200 dark:border-dark-200">
+          <MessageInput
+            loading={loading}
+            sendMessage={sendMessage}
+            fileIds={fileIds}
+            setFileIds={setFileIds}
+            files={files}
+            setFiles={setFiles}
+          />
         </div>
       </div>
 
@@ -115,7 +116,7 @@ const Chat = ({
         className={`${PANEL_WIDTHS[panelMode]} pt-4 overflow-y-auto transition-[width] duration-300 ease-in-out`}
       >
         <WorkspacePanel 
-          messages={messages}
+          // messages={messages}
           files={files}
           mode={panelMode}
           onModeChange={handlePanelModeChange}

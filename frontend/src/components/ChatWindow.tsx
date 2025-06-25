@@ -79,7 +79,7 @@ const ChatWindow = ({ chat, initialMessage }: {
   const chatHelper = useChat<UIMessage<ChatMessageMeta>>({
     id: chat.id,
     transport: transport,
-    experimental_throttle: 100
+    experimental_throttle: 50
   });
 
   const sendMessage = async (message: string, messageId?: string) => {
@@ -116,7 +116,7 @@ const ChatWindow = ({ chat, initialMessage }: {
     if (!isConfigReady && !hasError) {
       checkConfig(setIsConfigReady, setHasError, t);
     }
-  }, [isConfigReady, hasError, t]);
+  }, []);
 
   // Handle chat initialization
   useEffect(() => {
