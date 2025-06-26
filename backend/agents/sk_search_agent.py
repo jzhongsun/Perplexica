@@ -1,9 +1,14 @@
-import asyncio
-import io
+from urllib.parse import urljoin
+import uuid
+from functools import reduce
 import json
 import logging
 import os
 from typing import (
+    AsyncGenerator,
+    Dict,
+    List,
+    Tuple,
     override,
     Callable,
     Awaitable,
@@ -11,13 +16,11 @@ from typing import (
     Any,
     Annotated,
     TypedDict,
-    Optional,
 )
-from urllib.parse import urljoin
 from openai import AsyncOpenAI
 from semantic_kernel.kernel import Kernel, KernelArguments
 from semantic_kernel.kernel_pydantic import KernelBaseSettings
-from semantic_kernel.functions import KernelPlugin
+from semantic_kernel.functions import KernelPlugin, KernelFunction
 from semantic_kernel.contents import (
     ChatMessageContent,
     StreamingChatMessageContent,
@@ -41,23 +44,28 @@ from pydantic import BaseModel, Field
 from semantic_kernel.connectors.ai.open_ai.services.open_ai_chat_completion import (
     OpenAIChatCompletion,
 )
-from semantic_kernel.connectors.ai.function_choice_behavior import FunctionChoiceBehavior
+from semantic_kernel.connectors.ai.function_choice_behavior import (
+    FunctionChoiceBehavior,
+)
 from semantic_kernel.functions import kernel_function
-from markitdown._stream_info import StreamInfo
 from semantic_kernel.contents import ChatHistory
 from semantic_kernel.contents import AuthorRole
-from semantic_kernel.data import TextSearchResult
-from agents.utils import parse_json_response
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+WEB_SEARCH_PLUGIN_NAME = "web_search"
+WEB_SEARCH_RETRIEVE_FUNCTION_NAME = "search_and_fetch"
+
 
 class DocumentSearchResult(TypedDict):
     content: str
     metadata: dict[str, str]
 
+
 class DocumentSearchResults(TypedDict):
     query: str
     docs: list[DocumentSearchResult]
+
 
 class MetaSearchAgentConfig(KernelBaseSettings):
     search_web: bool = Field(default=True)
@@ -74,181 +82,11 @@ class MetaSearchDoc(TypedDict):
     metadata: dict[str, str]
 
 
-class MetaSearchResult(TypedDict):
+class MetaSearchResults(BaseModel):
     query: str
-    docs: list[MetaSearchDoc]
-
-
-class MetaSearchPlugin:
-    async def fetch_content_of_url(self, url: str, query: str | None = None, title: str | None = None) -> dict[str, str | bool | None]:
-        from playwright.async_api import async_playwright
-        from markitdown import MarkItDown
-        from markitdown.converters import HtmlConverter
-
-        async with async_playwright() as ps:
-            browser = None
-            try:
-                logger.info(f"Fetching content from URL: {url}")
-                browser = await ps.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    viewport={"width": 1920, "height": 1080},
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-                page = await context.new_page()
-                
-                # Set reasonable timeout and wait conditions
-                page.set_default_timeout(30000)
-                response = await page.goto(
-                    url,
-                    # wait_until="domcontentloaded",
-                    # timeout=30000
-                )
-                
-                if not response:
-                    return f"Failed to load URL: {url}"
-                    
-                if response.status >= 400:
-                    return f"HTTP error {response.status} for URL: {url}"
-
-                # Wait for content to load
-                await page.wait_for_load_state("networkidle", timeout=30000)
-                if title is None:
-                    title = await page.title()
-                    
-                # Get the main content
-                html_content = await page.evaluate("document.body.innerHTML;")
-                
-                chat_completion_service = OpenAIChatCompletion(
-                    ai_model_id=os.getenv("OPENAI_MODEL_NAME"),
-                    async_client=AsyncOpenAI(
-                        api_key=os.getenv("OPENAI_API_KEY"),
-                        base_url=os.getenv("OPENAI_BASE_URL"),
-                    ),
-                )
-                system_message = "You are a helpful assistant that converts HTML to markdown."
-                if query is not None:
-                    system_message += f"\n\nPlease extract the main content from the HTML that is relevant to this query: {query}"
-                if title is not None:
-                    system_message += f"\n\nOr extract content related to the page title: {title}"
-                
-                class MarkdownContextResult(BaseModel):
-                    success: bool = Field(description="Whether the markdown content is successfully extracted")
-                    failed_reason: Optional[str] = Field(description="The reason why the markdown content is not successfully extracted")
-                    markdown_content: Optional[str] = Field(description="The markdown content of the page")
-                    
-                    
-                system_message += f"\n\n ### Output Format \n\n Must return the content in json format. The json schema is: {json.dumps(MarkdownContextResult.model_json_schema(), indent=2)}"
-                    
-                markdown_content = await chat_completion_service.get_chat_message_content(
-                    chat_history=ChatHistory(messages=[ChatMessageContent(role=AuthorRole.USER, content=html_content)]),
-                    system_message=system_message,
-                    settings=chat_completion_service.instantiate_prompt_execution_settings(temperature=0.0, response_format="json_object"),
-                )
-                logger.info(f"converted markdown: {markdown_content}")
-                json_dict = parse_json_response(markdown_content.content)
-                if json_dict is not None:
-                    markdown_content_result = MarkdownContextResult.model_validate(json_dict)
-                    if markdown_content_result:
-                        return markdown_content_result.model_dump()
-                return {"success": False, "content": None, "failed_reason": "Failed to extract markdown content"}
-
-                # Convert to markdown with proper options
-                markdown_converter = HtmlConverter()
-                markdown_result = markdown_converter.convert_string(html_content, url=url)
-                logger.info(f"converted markdown: {markdown_result.text_content}")
-                return markdown_result.text_content
-
-            except Exception as e:
-                logger.error(f"Error fetching content from {url}: {str(e)}")
-                return {"success": False, "content": None, "failed_reason": f"Error fetching content: {str(e)}"}
-                
-            finally:
-                if browser:
-                    await browser.close()
-
-    async def seaxng_web_search(
-        self, query: str, language: str = "en"
-    ) -> MetaSearchResult:
-        import httpx
-
-        searxng_base_url = os.getenv("SEARXNG_BASE_URL")
-        logger.info(f"searxng_base_url: {searxng_base_url}")
-
-        # Prepare search parameters
-        params = {"q": query, "format": "json"}
-        params["engines"] = "360search"
-        params["language"] = language
-        # if categories:
-        #     params["categories"] = categories
-        # if engines:
-        #     params["engines"] = engines
-        # if language:
-        #     params["language"] = language
-        # if pageno:
-        #     params["pageno"] = str(pageno)
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                urljoin(searxng_base_url, "search"), params=params, timeout=30.0
-            )
-            response.raise_for_status()
-            data = response.json()
-            results = data["results"] if "results" in data else []
-            fetch_tasks = {}
-            for r in results:
-                fetch_tasks[r["url"]] = {
-                    "task": self.fetch_content_of_url(r["url"], query=query, title=r["title"]),
-                    "title": r["title"],
-                    "url": r["url"],
-                }
-            for item in fetch_tasks.values():
-                task_result = await item["task"]
-
-                item["success"] = task_result["success"]
-                if task_result["success"]:
-                    item["content"] = task_result["content"]
-                else:
-                    item["content"] = None
-                    item["failed_reason"] = task_result["failed_reason"]
-
-            logger.info(f"searxng_web_search: {data}")
-            
-            return MetaSearchResult(
-                query=query,
-                docs=[
-                    MetaSearchDoc(
-                        content=value["content"],
-                        metadata={
-                            "title": value["title"],
-                            "url": url,
-                        },
-                    )
-                    for url, value in fetch_tasks.items()
-                ],
-            )
-
-    @kernel_function(
-        name="web_search_and_retrieve",
-        description="Search the web using either a query or specific links. When links are provided, retrieve content from those URLs directly. When no links are provided, use the query to search the web.",
-    )
-    async def web_search_and_retrieve(
-        self,
-        query: Annotated[str, "The query to search for"] = None,
-        language: Annotated[str, "The language to search for"] = "en",
-        links: Annotated[list[str], "The links to search for"] = None,
-    ) -> Annotated[MetaSearchResult, "The search results"]:
-        logger.info(f"web_search_and_retrieve: {query}, {links}")
-        if links is not None and len(links) > 0:
-            results = MetaSearchResult(query=query, docs=[])
-            for link in links:
-                content = await self.fetch_content_of_url(link)
-                results.docs.append(MetaSearchDoc(content=content, metadata={"url": link}))
-            return results
-        if query is not None and len(query) > 0:
-            data = await self.seaxng_web_search(query, language)
-            return data
-            # return MetaSearchResult(query=query, docs=[MetaSearchDoc(content=result["content"], metadata=result["metadata"]) for result in data["results"]])
-        raise ValueError("No query or links provided")
+    num_results: int = Field(default=0)
+    results: List[MetaSearchDoc] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 @register_agent_type("meta_search_agent")
@@ -356,9 +194,14 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
         #     plugin_name="local_search_and_retrieve",
         # ))
         if self.search_config.search_web:
-            kernel.add_plugin(plugin_name="web_search", plugin=MetaSearchPlugin())
-            
-        inner_chat_completion_service = kernel.get_service(type=OpenAIChatCompletion)                
+            kernel.add_function(
+                plugin_name=WEB_SEARCH_PLUGIN_NAME,
+                function_name=WEB_SEARCH_RETRIEVE_FUNCTION_NAME,
+                function=KernelFunction.from_method(self.__web_search_and_fetch),
+            )
+            # kernel.add_plugin(plugin_name=WEB_SEARCH_PLUGIN_NAME, plugin=MetaSearchPlugin())
+
+        inner_chat_completion_service = kernel.get_service(type=OpenAIChatCompletion)
         chat_history = ChatHistory()
         chat_history.add_system_message(self.instructions)
         for message in messages:
@@ -367,24 +210,120 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
         agent_thread = ChatHistoryAgentThread(chat_history=chat_history)
 
         settings = inner_chat_completion_service.instantiate_prompt_execution_settings(
-            function_choice_behavior=FunctionChoiceBehavior.Auto(auto_invoke=True),
-            temperature=0.0)
-        logger.info(f"invoke_stream for {kernel} \n chat_history = {chat_history.model_dump_json(indent=2)} \n settings = {settings.model_dump_json(indent=2, exclude_none=True)}.")
-        async for message_content_chunk in inner_chat_completion_service.get_streaming_chat_message_content(chat_history=chat_history, settings=settings, kernel=kernel):
-            logger.info(f"{type(message_content_chunk)}: {message_content_chunk.model_dump_json(indent=2, exclude_none=True)}")
+            function_choice_behavior=FunctionChoiceBehavior.Auto(auto_invoke=False),
+            temperature=0.0,
+        )
+        logger.info(
+            f"invoke_stream for {kernel} \n chat_history = {chat_history.model_dump_json(indent=2)} \n settings = {settings.model_dump_json(indent=2, exclude_none=True)}."
+        )
+        all_messages: list["StreamingChatMessageContent"] = []
+        function_call_returned = False
+        async for (
+            message_content_chunk
+        ) in inner_chat_completion_service.get_streaming_chat_message_content(
+            chat_history=chat_history, settings=settings, kernel=kernel
+        ):
+            logger.info(
+                f"{type(message_content_chunk)}: {message_content_chunk.model_dump_json(indent=2, exclude_none=True)}"
+            )
+            if message_content_chunk is None:
+                continue
+
+            all_messages.append(message_content_chunk)
+            if not function_call_returned and any(
+                isinstance(item, FunctionCallContent)
+                for item in message_content_chunk.items
+            ):
+                function_call_returned = True
+
             role = message_content_chunk.role
             if (
                 role == AuthorRole.ASSISTANT
-                and (message_content_chunk.items or message_content_chunk.metadata.get("usage"))
+                and (
+                    message_content_chunk.items
+                    or message_content_chunk.metadata.get("usage")
+                )
                 and not any(
-                    isinstance(item, (FunctionCallContent, FunctionResultContent)) for item in message_content_chunk.items
+                    isinstance(item, (FunctionCallContent, FunctionResultContent))
+                    for item in message_content_chunk.items
                 )
             ):
-                yield AgentResponseItem(message=message_content_chunk, thread=agent_thread)
-            
-            # yield AgentResponseItem(message=message_content_chunk, thread=agent_thread)
-        
+                yield AgentResponseItem(
+                    message=message_content_chunk, thread=agent_thread
+                )
 
+            # yield AgentResponseItem(message=message_content_chunk, thread=agent_thread)
+        if not function_call_returned:
+            return
+
+        full_completion: StreamingChatMessageContent = reduce(
+            lambda x, y: x + y, all_messages
+        )
+        logger.info(
+            f"full_completion = \n{full_completion.model_dump_json(indent=2, exclude_none=True)}"
+        )
+        function_calls = [
+            item
+            for item in full_completion.items
+            if isinstance(item, FunctionCallContent)
+        ]
+        logger.info(f"function_calls = \n{function_calls}")
+
+        for function_call in function_calls:
+            yield AgentResponseItem(
+                message=StreamingChatMessageContent(
+                    role=AuthorRole.TOOL,
+                    items=[function_call],
+                    choice_index=full_completion.choice_index if full_completion else 0,
+                    metadata=full_completion.metadata if full_completion else {},
+                ),
+                thread=agent_thread,
+            )
+            if (
+                function_call.function_name == WEB_SEARCH_RETRIEVE_FUNCTION_NAME
+                and function_call.plugin_name == WEB_SEARCH_PLUGIN_NAME
+            ):
+                arguments = json.loads(function_call.arguments)
+                async for (
+                    query,
+                    url,
+                    page_content,
+                ) in self.__web_search_and_fetch(
+                    arguments["query"], language=arguments["language"]
+                ):
+                    logger.info(
+                        f"query = {query}, url = {url}, page_content = {page_content}"
+                    )
+                    logger.info(f"result = {page_content}")
+
+                    yield AgentResponseItem(
+                        message=StreamingChatMessageContent(
+                            role=AuthorRole.TOOL,
+                            items=[
+                                FunctionResultContent(
+                                    id=str(uuid.uuid4()),
+                                    name=function_call.name,
+                                    function_call_id=function_call.id,
+                                    function_name=WEB_SEARCH_RETRIEVE_FUNCTION_NAME,
+                                    plugin_name=WEB_SEARCH_PLUGIN_NAME,
+                                    result=[
+                                        {
+                                            "url": url,
+                                            "title": page_content["title"],
+                                            "content": page_content["text_content"] if "text_content" in page_content else "",
+                                        }
+                                    ],
+                                )
+                            ],
+                            choice_index=(
+                                full_completion.choice_index if full_completion else 0
+                            ),
+                            metadata=(
+                                full_completion.metadata if full_completion else {}
+                            ),
+                        ),
+                        thread=agent_thread,
+                    )
         # inner_chat_completion_agent = ChatCompletionAgent(
         #     id=self.inner_chat_completion_agent.id,
         #     kernel=kernel,
@@ -428,3 +367,60 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
             data, kernel=kernel, plugins=plugins, **kwargs
         )
         return cls(**fields, kernel=kernel)
+
+    @kernel_function(
+        name=WEB_SEARCH_RETRIEVE_FUNCTION_NAME,
+        description="Search the web using either a query or specific links. When links are provided, retrieve content from those URLs directly. When no links are provided, use the query to search the web.",
+    )
+    async def __web_search_and_fetch(
+        self,
+        query: Annotated[str, "The query to search for"] = None,
+        language: Annotated[str, "The language to search for"] = "en",
+        links: Annotated[list[str], "The links to search for"] = None,
+    ) -> Annotated[
+        AsyncGenerator[Tuple[str, str, Dict[str, Any]]], "The search results"
+    ]:
+        import httpx
+
+        WEB_SEARCH_BASE_URL = os.getenv("WEB_SEARCH_BASE_URL", "http://localhost:9000")
+        logger.info(f"WEB_SEARCH_BASE_URL = {WEB_SEARCH_BASE_URL}")
+
+        async def __fetch_content_of_url(
+            url: str, query: str | None = None, title: str | None = None
+        ) -> dict[str, Any]:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(60.0 * 3, connect=60.0)) as client:
+                response = await client.post(
+                    urljoin(WEB_SEARCH_BASE_URL, "/api/v1/web_page_fetch"),
+                    json={"url": url, "query": query, "title": title},
+                )
+                response.raise_for_status()
+                return response.json()
+
+        async def __web_search(query: str, language: str = "en") -> dict[str, Any]:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=60.0)) as client:
+                response = await client.post(
+                    urljoin(WEB_SEARCH_BASE_URL, "/api/v1/web_search"),
+                    json={"query": query, "language": language},
+                )
+                response.raise_for_status()
+                return response.json()
+
+        logger.info(f"web_search_and_retrieve: {query}, {links}")
+        if links is not None and len(links) > 0:
+            for link in links:
+                content = await __fetch_content_of_url(link)
+                yield query, link, content
+        if query is not None and len(query) > 0:
+            results = await __web_search(query, language)
+            search_results = results["results"] if "results" in results else []
+            for result in search_results:
+                url = result["url"]
+                title = result["title"]
+                content = result["content"]
+                page_content = await __fetch_content_of_url(
+                    url=url, query=query, title=title
+                )
+                yield query, url, page_content
+            # return MetaSearchResult(query=query, docs=[MetaSearchDoc(content=result["content"], metadata=result["metadata"]) for result in data["results"]])
+        else:
+            raise ValueError("No query or links provided")

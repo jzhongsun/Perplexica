@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 
@@ -27,3 +28,10 @@ def parse_json_response(response: str) -> dict:
 
         # If no valid JSON found, return original response
         return response
+
+async def save_image_file(image_bytes: bytes, folder_path: str, file_name: str):
+    os.makedirs(folder_path, exist_ok=True)
+    file_path = os.path.join(folder_path, file_name)
+    with open(file_path, "wb") as f:
+        f.write(image_bytes)
+    return file_path
