@@ -14,6 +14,9 @@ import uuid
 WEB_PAGE_FETCH_BASE_FOLDER = os.environ.get(
     "WEB_PAGE_FETCH_BASE_FOLDER", "./web_fetch_content"
 )
+WEB_PAGE_FETCH_MARKDOWN_CONVERTER_ENGINE_NAME = os.environ.get(
+    "WEB_PAGE_FETCH_MARKDOWN_CONVERTER_ENGINE_NAME", "MARKITDOWN"
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -170,58 +173,66 @@ async def _playwright_fetch_content_of_url(
             if browser:
                 await browser.close()
 
-        chat_completion_service = OpenAIChatCompletion(
-            ai_model_id=os.getenv("OPENAI_MODEL_NAME"),
-            async_client=AsyncOpenAI(
-                api_key=os.getenv("OPENAI_API_KEY"),
-                base_url=os.getenv("OPENAI_BASE_URL"),
-            ),
-        )
-        system_message = (
-            "You are a content extraction specialist. Your task is to extract relevant content from HTML and convert it to clean Markdown format.\n\n"
-            "INSTRUCTIONS:\n"
-            "1. Extract ONLY content that is directly relevant to the user's query or page title\n"
-            "2. IGNORE advertisements, recommendations, navigation menus, sidebars, and other peripheral content\n"
-            "3. Preserve the original language of the content - MUST NOT translate it\n"
-            "4. Format the extracted content as clean, well-structured Markdown\n"
-            "5. Maintain the original text content and meaning\n"
-            "6. Focus on the main article/content body\n"
-            "7. Do not add any commentary or additional information not present in the source\n"
-            "8. Only output the markdown content, no other text such as reasoning, explanation, etc.\n"
-            "9. DO NOT process, analyze, or modify the content - only format the original raw content into Markdown\n"
-            "10. Return the formatted original content as-is for subsequent analysis stages\n"
-            "11. When encountering detailed data, especially tables, MUST retain ALL detailed content completely\n"
-            "12. For tables: preserve all rows, columns, headers, and data values without omission\n"
-            "13. For data lists, statistics, or numerical content: include every item and value\n"
-            "14. Never summarize or abbreviate detailed data - maintain complete information integrity"
-        )
-        if query is not None:
-            system_message += f"\n\nPlease extract the main content from the HTML that is relevant to this query: {query}"
-        if title is not None:
-            system_message += f"\n\nOr extract content related to the page title: {fetch_result['title']}"
+        if WEB_PAGE_FETCH_MARKDOWN_CONVERTER_ENGINE_NAME.upper() == "MARKITDOWN":
+            import markitdown.converters
+            converter = markitdown.converters.HtmlConverter()
+            fetch_result["markdown_content"] = converter.convert_string(html_content = fetch_result["html_content"]).markdown
+        else:
+            chat_completion_service = OpenAIChatCompletion(
+                ai_model_id=os.getenv("OPENAI_MODEL_NAME"),
+                async_client=AsyncOpenAI(
+                    api_key=os.getenv("OPENAI_API_KEY"),
+                    base_url=os.getenv("OPENAI_BASE_URL"),
+                ),
+            )
+            system_message = (
+                "You are a content extraction specialist. Your task is to extract relevant content from HTML and convert it to clean Markdown format.\n\n"
+                "INSTRUCTIONS:\n"
+                "1. Extract ONLY content that is directly relevant to the user's query or page title\n"
+                "2. IGNORE advertisements, recommendations, navigation menus, sidebars, and other peripheral content\n"
+                "3. Preserve the original language of the content - MUST NOT translate it\n"
+                "4. Format the extracted content as clean, well-structured Markdown\n"
+                "5. Maintain the original text content and meaning\n"
+                "6. Focus on the main article/content body\n"
+                "7. Do not add any commentary or additional information not present in the source\n"
+                "8. Only output the markdown content, no other text such as reasoning, explanation, etc.\n"
+                "9. DO NOT process, analyze, or modify the content - only format the original raw content into Markdown\n"
+                "10. Return the formatted original content as-is for subsequent analysis stages\n"
+                "11. When encountering detailed data, especially tables, MUST retain ALL detailed content completely\n"
+                "12. For tables: preserve all rows, columns, headers, and data values without omission\n"
+                "13. For data lists, statistics, or numerical content: include every item and value\n"
+                "14. Never summarize or abbreviate detailed data - maintain complete information integrity"
+            )
+            if query is not None:
+                system_message += f"\n\nPlease extract the main content from the HTML that is relevant to this query: {query}"
+            if title is not None:
+                system_message += f"\n\nOr extract content related to the page title: {fetch_result['title']}"
 
-        logger.info(f"fetched result: \n {fetch_result['html_content']}")
-        settings = chat_completion_service.instantiate_prompt_execution_settings(
-            temperature=0.0
-        )
-        message_content = await chat_completion_service.get_chat_message_content(
-            chat_history=ChatHistory(
-                messages=[
-                    ChatMessageContent(
-                        role=AuthorRole.USER, content=fetch_result["html_content"]
-                    )
-                ]
-            ),
-            system_message=system_message,
-            settings=settings,
-        )
-        logger.info(f"extracted -> markdown: \n {message_content.content}")
-        final_markdown_content = (
-            message_content.content
-            if message_content is not None and len(message_content.content) > 0
-            else ""
-        )
-        fetch_result["markdown_content"] = final_markdown_content
+            logger.info(f"fetched result: \n {fetch_result['html_content']}")
+            settings = chat_completion_service.instantiate_prompt_execution_settings(
+                temperature=0.0
+            )
+            message_content = await chat_completion_service.get_chat_message_content(
+                chat_history=ChatHistory(
+                    messages=[
+                        ChatMessageContent(
+                            role=AuthorRole.USER, content=fetch_result["html_content"]
+                        )
+                    ]
+                ),
+                system_message=system_message,
+                settings=settings,
+            )
+            logger.info(f"extracted -> markdown: \n {message_content.content}")
+            final_markdown_content = (
+                message_content.content
+                if message_content is not None and len(message_content.content) > 0
+                else ""
+            )
+            fetch_result["markdown_content"] = final_markdown_content
+        
+        final_markdown_content = fetch_result.get("markdown_content")
+        logger.info(f"fetched result: \n {fetch_result['markdown_content']}")
         result_id = await _save_fetch_result(fetch_result, result_id=str(uuid.uuid4()))
         final_failed_reason = (
             ""
