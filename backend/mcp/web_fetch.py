@@ -96,7 +96,7 @@ async def _playwright_fetch_content_of_url(
         try:
             logger.info(f"Fetching content from URL: {url}")
             browser = await ps.chromium.launch(
-                headless=False,
+                headless=True,
                 args=["--disable-font-download", "--disable-remote-fonts"],
             )
             context = await browser.new_context(
@@ -154,9 +154,9 @@ async def _playwright_fetch_content_of_url(
             fetch_result["url"] = url
             fetch_result["query"] = query
             fetch_result["screenshot"] = await page.screenshot(
-                full_page=True, type="png"
+                full_page=True, type="jpeg"
             )
-            fetch_result["screenshot_type"] = "png"
+            fetch_result["screenshot_type"] = "jpeg"
 
         except Exception as e:
             logger.error(f"Error fetching content from {url}: {str(e)}")
@@ -250,7 +250,7 @@ async def _playwright_fetch_content_of_url(
             publish_date=None,
             title=title,
             failed_reason=final_failed_reason,
-            screenshot_filename=f"{result_id}.png",
+            screenshot_filename=f"{result_id}.jpeg",
         )
 
 
@@ -274,7 +274,7 @@ def setup_web_fetch(app: FastAPI) -> FastMCP | None:
         if not os.path.exists(screenshot_file_path):
             return Response(status_code=404, content="Screenshot not found")
         with open(screenshot_file_path, "rb") as f:
-            return Response(content=f.read(), media_type="image/png")
+            return Response(content=f.read(), media_type="image/jpeg")
 
     @app.post(
         "/api/v1/web_page_fetch",

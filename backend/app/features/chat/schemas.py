@@ -22,11 +22,12 @@ def create_message_part(data: Dict[str, Any]) -> UIMessagePart:
         raise ValueError("Message part must have a type")
 
     if part_type == "text":
-        return TextUIPart(type="text", text=data["text"])
+        return TextUIPart(type="text", text=data["text"], state=data.get("state"))
     elif part_type == "reasoning":
         return ReasoningUIPart(
             type="reasoning",
             text=data["text"],
+            state=data.get("state"),
             providerMetadata=data.get("providerMetadata"),
         )
     elif part_type == "source-url":
@@ -62,14 +63,20 @@ def create_message_part(data: Dict[str, Any]) -> UIMessagePart:
         tool_base = {
             "type": part_type,
             "toolCallId": data["toolCallId"],
-            "args": data.get("args", {}),
+            "providerExecuted": data.get("providerExecuted"),
         }
-        if data.get("result") is not None:
-            return ToolUIPart(state="result", result=data["result"], **tool_base)
-        elif data.get("state") == "partial-call":
-            return ToolUIPart(state="partial-call", **tool_base)
+        state = data.get("state")
+        if state == "input-streaming":
+            return ToolUIPart(state="input-streaming", input=data.get("input", {}), **tool_base)
+        elif state == "input-available":
+            return ToolUIPart(state="input-available", input=data.get("input", {}), **tool_base)
+        elif state == "output-available":
+            return ToolUIPart(state="output-available", input=data.get("input", {}), output=data.get("output"), **tool_base)
+        elif state == "output-error":
+            return ToolUIPart(state="output-error", input=data.get("input", {}), errorText=data.get("errorText", ""), **tool_base)
         else:
-            return ToolUIPart(state="call", **tool_base)
+            # Default to input-available for backward compatibility
+            return ToolUIPart(state="input-available", input=data.get("args", {}), **tool_base)
     else:
         raise ValueError(f"Unknown message part type: {part_type}")
 

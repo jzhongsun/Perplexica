@@ -24,6 +24,7 @@ import ThinkBox from './ThinkBox';
 import { UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
 import { useTranslation } from 'react-i18next';
+import { MemoizedMarkdown } from './ui/MemoizedMarkdown';
 
 const ThinkTagProcessor = ({ children }: { children: React.ReactNode }) => {
   return <ThinkBox content={children as string} />;
@@ -172,16 +173,15 @@ const MessageBox = ({
                 </div>)}
                 {uiMessage.parts.map((part, index) => (
                   part.type === 'text' && (
-                    <Markdown
-                      key={index}
+                    <MemoizedMarkdown
+                      key={uiMessage.id + "_" + index}
+                      content={part.text}
                       className={cn(
                         'prose prose-h1:mb-3 prose-h2:mb-2 prose-h2:mt-6 prose-h2:font-[800] prose-h3:mt-4 prose-h3:mb-1.5 prose-h3:font-[600] dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-[400]',
                         'max-w-none break-words text-black dark:text-white',
                       )}
                       options={markdownOverrides}
-                    >
-                      {part.text}
-                    </Markdown>
+                    />
                   )
                 ))}
                 {loading && isLast ? null : (

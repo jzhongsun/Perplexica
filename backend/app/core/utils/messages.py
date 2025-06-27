@@ -13,7 +13,9 @@ from a2a.types import (
 
 from ..ui_message_stream import (
     UIMessageStreamPart,
-    TextUIMessageStreamPart,
+    TextStartUIMessageStreamPart,
+    TextDeltaUIMessageStreamPart,
+    TextEndUIMessageStreamPart,
     FileUIMessageStreamPart,
     DataUIMessageStreamPart,
 )
@@ -49,22 +51,29 @@ def ui_message_to_a2a_message(
     )
 
 
-def a2a_part_to_ui_part(part: Part) -> UIMessageStreamPart:
+def a2a_part_to_ui_stream_part(part: Part) -> List[UIMessageStreamPart]:
+    """Convert a2a part to UI message stream parts. Returns a list since text parts are split into start/delta/end."""
     if isinstance(part.root, TextPart):
-        return TextUIMessageStreamPart(text=part.root.text)
+        # Generate a unique ID for this text stream
+        text_id = str(uuid.uuid4())
+        return [
+            TextStartUIMessageStreamPart(id=text_id),
+            TextDeltaUIMessageStreamPart(id=text_id, delta=part.root.text),
+            TextEndUIMessageStreamPart(id=text_id)
+        ]
     elif isinstance(part.root, FilePart):
         if isinstance(part.root.file, FileWithUri):
-            return FileUIMessageStreamPart(
+            return [FileUIMessageStreamPart(
                 url=part.root.file.uri, mediaType=part.root.file.mimeType
-            )
+            )]
         elif isinstance(part.root.file, FileWithBytes):
-            return FileUIMessageStreamPart(
+            return [FileUIMessageStreamPart(
                 url=part.root.file.bytes, mediaType=part.root.file.mimeType
-            )
+            )]
         else:
             raise ValueError(f"Unsupported file type: {type(part.root.file)}")
     elif isinstance(part.root, DataPart):
-        return DataUIMessageStreamPart(data=part.root.data)
+        return [DataUIMessageStreamPart(type="data-generic", data=part.root.data)]
     else:
         raise ValueError(f"Unsupported part type: {type(part.root)}")
 
@@ -72,4 +81,8 @@ def a2a_part_to_ui_part(part: Part) -> UIMessageStreamPart:
 def a2a_message_to_ui_message_stream_parts(
     message: Message,
 ) -> List[UIMessageStreamPart]:
-    return [a2a_part_to_ui_part(part) for part in message.parts]
+    """Convert a2a message to UI message stream parts."""
+    stream_parts = []
+    for part in message.parts:
+        stream_parts.extend(a2a_part_to_ui_stream_part(part))
+    return stream_parts

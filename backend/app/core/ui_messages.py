@@ -1,6 +1,5 @@
 """UI message types and interfaces for communication between frontend and API routes."""
-from typing import Any, Dict, List, Optional, TypeVar, Union, Literal
-from typing_extensions import TypedDict
+from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import BaseModel, Field
 
 # Type aliases
@@ -11,20 +10,22 @@ class TextUIPart(BaseModel):
     """A text part of a message."""
     type: Literal['text'] = 'text'
     text: str
+    state: Optional[Literal['streaming', 'done']] = None
 
 class ReasoningUIPart(BaseModel):
     """A reasoning part of a message."""
     type: Literal['reasoning'] = 'reasoning'
     text: str
-    providerMetadata: Optional[Dict[str, Any]]
+    state: Optional[Literal['streaming', 'done']] = None
+    providerMetadata: Optional[Dict[str, Any]] = None
 
 class SourceUrlUIPart(BaseModel):
     """A source URL part of a message."""
     type: Literal['source-url'] = 'source-url'
     sourceId: str
     url: str
-    title: Optional[str]
-    providerMetadata: Optional[Dict[str, Any]]
+    title: Optional[str] = None
+    providerMetadata: Optional[Dict[str, Any]] = None
 
 class SourceDocumentUIPart(BaseModel):
     """A document source part of a message."""
@@ -32,14 +33,14 @@ class SourceDocumentUIPart(BaseModel):
     sourceId: str
     mediaType: str
     title: str
-    filename: Optional[str]
-    providerMetadata: Optional[Dict[str, Any]]
+    filename: Optional[str] = None
+    providerMetadata: Optional[Dict[str, Any]] = None
 
 class FileUIPart(BaseModel):
     """A file part of a message."""
     type: Literal['file'] = 'file'
     mediaType: str
-    filename: Optional[str]
+    filename: Optional[str] = None
     url: str
 
 class StepStartUIPart(BaseModel):
@@ -49,31 +50,43 @@ class StepStartUIPart(BaseModel):
 class DataUIPart(BaseModel):
     """A data part of a message."""
     type: str  # Will be 'data-{NAME}'
-    id: Optional[str]
+    id: Optional[str] = None
     data: Any
 
 class ToolUIPartBase(BaseModel):
     """Base class for tool UI parts."""
     type: str  # Will be 'tool-{NAME}'
     toolCallId: str
+    providerExecuted: Optional[bool] = None
 
-class ToolUIPartPartialCall(ToolUIPartBase):
-    """Tool UI part for partial calls."""
-    state: Literal['partial-call'] = 'partial-call'
-    args: Dict[str, Any]
+class ToolUIPartInputStreaming(ToolUIPartBase):
+    """Tool UI part for input streaming state."""
+    state: Literal['input-streaming'] = 'input-streaming'
+    input: Dict[str, Any]  # DeepPartial in TypeScript
 
-class ToolUIPartCall(ToolUIPartBase):
-    """Tool UI part for complete calls."""
-    state: Literal['call'] = 'call'
-    args: Dict[str, Any]
+class ToolUIPartInputAvailable(ToolUIPartBase):
+    """Tool UI part for input available state."""
+    state: Literal['input-available'] = 'input-available'
+    input: Dict[str, Any]
 
-class ToolUIPartResult(ToolUIPartBase):
-    """Tool UI part for results."""
-    state: Literal['result'] = 'result'
-    args: Dict[str, Any]
-    result: Any
+class ToolUIPartOutputAvailable(ToolUIPartBase):
+    """Tool UI part for output available state."""
+    state: Literal['output-available'] = 'output-available'
+    input: Dict[str, Any]
+    output: Any
 
-ToolUIPart = Union[ToolUIPartPartialCall, ToolUIPartCall, ToolUIPartResult]
+class ToolUIPartOutputError(ToolUIPartBase):
+    """Tool UI part for output error state."""
+    state: Literal['output-error'] = 'output-error'
+    input: Dict[str, Any]
+    errorText: str
+
+ToolUIPart = Union[
+    ToolUIPartInputStreaming,
+    ToolUIPartInputAvailable,
+    ToolUIPartOutputAvailable,
+    ToolUIPartOutputError
+]
 
 UIMessagePart = Union[
     TextUIPart,
@@ -88,11 +101,10 @@ UIMessagePart = Union[
 
 class UIMessage(BaseModel):
     """UI Message interface for client-API communication."""
-    id: Optional[str] = Field(default=None, description="ID of the message")
+    id: str = Field(..., description="A unique identifier for the message")
     role: Literal['system', 'user', 'assistant'] = Field(..., description="Role of the message sender (system/user/assistant)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadata for the message")
     parts: List[UIMessagePart] = Field(..., description="Parts of the message")
-    
     
     def content(self) -> str:
         """Get the content of the message."""
@@ -100,8 +112,8 @@ class UIMessage(BaseModel):
 
 def is_tool_ui_part(part: UIMessagePart) -> bool:
     """Check if a message part is a tool part."""
-    return part['type'].startswith('tool-')
+    return hasattr(part, 'type') and part.type.startswith('tool-')
 
 def get_tool_name(part: ToolUIPart) -> str:
     """Get the tool name from a tool part."""
-    return part['type'].split('-')[1]
+    return part.type.split('-')[1]

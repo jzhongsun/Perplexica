@@ -1,11 +1,13 @@
 """Chat router module."""
 
 import datetime
-from app.core.ui_message_stream import ErrorUIMessageStreamPart, FinishUIMessageStreamPart, StartUIMessageStreamPart
+from typing import Optional
+from app.core.ui_message_stream import ErrorUIMessageStreamPart, FinishUIMessageStreamPart, StartUIMessageStreamPart, TextDeltaUIMessageStreamPart, TextEndUIMessageStreamPart, TextStartUIMessageStreamPart
 from app.db.schemas import User
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import httpx
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import uuid
 from loguru import logger
@@ -59,47 +61,83 @@ async def handle_chat_stream(
     async def event_generator():
         stream = chat_service.chat_stream(chat_id, request.messages, request.options)
         try:
-            last_message_id = None            
+            last_message_id = None
+            
+            class ActiveMessageProps(BaseModel):
+                reference_message_id: Optional[str] = None
+                message_id: Optional[str] = None
+                text_part_id: Optional[str] = None
+                reasoning_part_id: Optional[str] = None
+
+            active_message_props = ActiveMessageProps()
             async for response_item in stream:
-                response_item_ui_message_parts = None
                 if isinstance(response_item.root, SendStreamingMessageSuccessResponse):
                     logger.info(f"Response item: {type(response_item.root.result)} - {response_item.root.result}")
                     if isinstance(response_item.root.result, a2a_types.Message):
-                        response_item_ui_message_parts = (
-                            a2a_message_to_ui_message_stream_parts(
-                                response_item.root.result
-                            )
-                        )
+                        pass
                     elif isinstance(response_item.root.result, a2a_types.Task):
                         pass
                     elif isinstance(
                         response_item.root.result, a2a_types.TaskStatusUpdateEvent
                     ):
                         response_message = response_item.root.result.status.message
-                        if response_message is not None:
-                            response_message_id = response_message.messageId
-                            if last_message_id is None:
-                                last_message_id = response_message_id
+                        if response_message is None:
+                            continue
+                        
+                        if active_message_props.reference_message_id is None:
+                            active_message_props.reference_message_id = response_message.messageId
+                            active_message_props.message_id = str(uuid.uuid4())
+                            yield {
+                                "id": str(uuid.uuid4()),
+                                "event": "message",
+                                "data": StartUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
+                            }
+                        if active_message_props.reference_message_id != response_message.messageId:
+                            assert active_message_props.message_id is not None
+                            if active_message_props.text_part_id is not None:
                                 yield {
                                     "id": str(uuid.uuid4()),
                                     "event": "message",
-                                    "data": StartUIMessageStreamPart(messageId=response_message_id).model_dump_json(exclude_none=True),
+                                    "data": TextEndUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
                                 }
-                            elif last_message_id != response_message_id:
-                                last_message_id = response_message_id
-                                yield {
-                                    "id": str(uuid.uuid4()),
-                                    "event": "message",
-                                    "data": FinishUIMessageStreamPart().model_dump_json(exclude_none=True),
-                                }
-                                yield {
-                                    "id": str(uuid.uuid4()),
-                                    "event": "message",
-                                    "data": StartUIMessageStreamPart(messageId=response_message_id).model_dump_json(exclude_none=True),
-                                }
-                            response_item_ui_message_parts = (
-                                a2a_message_to_ui_message_stream_parts(response_message)
-                            )
+                                active_message_props.text_part_id = None
+
+                            # previous message is finished, start a new one
+                            yield {
+                                "id": str(uuid.uuid4()),
+                                "event": "message",
+                                "data": FinishUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
+                            }
+                            active_message_props.reference_message_id = response_message.messageId
+                            active_message_props.message_id = str(uuid.uuid4())
+                            yield {
+                                "id": str(uuid.uuid4()),
+                                "event": "message",
+                                "data": StartUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
+                            }
+                        assert active_message_props.message_id is not None
+                        for part in response_message.parts:
+                            if isinstance(part.root, a2a_types.TextPart):
+                                if active_message_props.text_part_id is None:
+                                    active_message_props.text_part_id = str(uuid.uuid4())
+                                    yield {
+                                        "id": str(uuid.uuid4()),
+                                        "event": "message",
+                                        "data": TextStartUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
+                                    }
+                                if part.root.text is not None:
+                                    yield {
+                                        "id": str(uuid.uuid4()),
+                                        "event": "message",
+                                        "data": TextDeltaUIMessageStreamPart(id=active_message_props.text_part_id, delta=part.root.text).model_dump_json(exclude_none=True),
+                                    }
+                            elif isinstance(part.root, a2a_types.DataPart):
+                                logger.info(f"Data part: {part.root}")
+                            elif isinstance(part.root, a2a_types.FilePart):
+                                logger.info(f"File part: {part.root}")
+                            else:
+                                logger.info(f"Unknown part: {part.root}")
+                                
                     elif isinstance(
                         response_item.root.result, a2a_types.TaskArtifactUpdateEvent
                     ):
@@ -109,20 +147,21 @@ async def handle_chat_stream(
                             f"Unsupported response item type: {type(response_item.root.result)}"
                         )
 
-                if response_item_ui_message_parts is None:
-                    continue
-                for part in response_item_ui_message_parts:
-                    yield {
-                        "id": str(uuid.uuid4()),
-                        "event": "message",
-                        "data": part.model_dump_json(exclude_none=True),
-                    }
-            if last_message_id is not None:
+            if active_message_props.text_part_id is not None:
                 yield {
                     "id": str(uuid.uuid4()),
                     "event": "message",
-                    "data": FinishUIMessageStreamPart().model_dump_json(exclude_none=True),
+                    "data": TextEndUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
                 }
+                active_message_props.text_part_id = None
+            if active_message_props.message_id is not None:
+                yield {
+                    "id": str(uuid.uuid4()),
+                    "event": "message",
+                    "data": FinishUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
+                }
+                active_message_props.message_id = None
+                active_message_props.reference_message_id = None
         except Exception as e:
             error_msg = f"Error in chat stream: {str(e)}\nTraceback:\n{traceback.format_exc()}"
             logger.error(error_msg)

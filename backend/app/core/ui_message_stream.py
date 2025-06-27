@@ -1,14 +1,25 @@
 from typing import Any, Dict, Generic, Literal, Optional, TypeVar, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from .ui_messages import UIDataTypes, UIMessage
 
 ProviderMetadata = Dict[str, Any]
 
 
-class TextUIMessageStreamPart(BaseModel):
-    type: Literal["text"] = "text"
-    text: str
+class TextStartUIMessageStreamPart(BaseModel):
+    type: Literal["text-start"] = "text-start"
+    id: str
+
+
+class TextDeltaUIMessageStreamPart(BaseModel):
+    type: Literal["text-delta"] = "text-delta"
+    id: str
+    delta: str
+
+
+class TextEndUIMessageStreamPart(BaseModel):
+    type: Literal["text-end"] = "text-end"
+    id: str
 
 
 class ErrorUIMessageStreamPart(BaseModel):
@@ -20,6 +31,7 @@ class ToolInputStartUIMessageStreamPart(BaseModel):
     type: Literal["tool-input-start"] = "tool-input-start"
     toolCallId: str
     toolName: str
+    providerExecuted: Optional[bool] = None
 
 
 class ToolInputDeltaUIMessageStreamPart(BaseModel):
@@ -33,18 +45,45 @@ class ToolInputAvailableUIMessageStreamPart(BaseModel):
     toolCallId: str
     toolName: str
     input: Any
+    providerExecuted: Optional[bool] = None
 
 
 class ToolOutputAvailableUIMessageStreamPart(BaseModel):
     type: Literal["tool-output-available"] = "tool-output-available"
     toolCallId: str
     output: Any
-    providerMetadata: Optional[ProviderMetadata] = None
+    providerExecuted: Optional[bool] = None
+
+
+class ToolOutputErrorUIMessageStreamPart(BaseModel):
+    type: Literal["tool-output-error"] = "tool-output-error"
+    toolCallId: str
+    errorText: str
+    providerExecuted: Optional[bool] = None
 
 
 class ReasoningUIMessageStreamPart(BaseModel):
     type: Literal["reasoning"] = "reasoning"
     text: str
+    providerMetadata: Optional[Dict[str, Any]] = None
+
+
+class ReasoningStartUIMessageStreamPart(BaseModel):
+    type: Literal["reasoning-start"] = "reasoning-start"
+    id: str
+    providerMetadata: Optional[Dict[str, Any]] = None
+
+
+class ReasoningDeltaUIMessageStreamPart(BaseModel):
+    type: Literal["reasoning-delta"] = "reasoning-delta"
+    id: str
+    delta: str
+    providerMetadata: Optional[Dict[str, Any]] = None
+
+
+class ReasoningEndUIMessageStreamPart(BaseModel):
+    type: Literal["reasoning-end"] = "reasoning-end"
+    id: str
     providerMetadata: Optional[Dict[str, Any]] = None
 
 
@@ -80,10 +119,12 @@ class DataUIMessageStreamPart(BaseModel):
     id: Optional[str] = None
     data: Any
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        if not self.type.startswith("data-"):
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v):
+        if not v.startswith("data-"):
             raise ValueError("Data stream part type must start with 'data-'")
+        return v
 
 
 class StartStepUIMessageStreamPart(BaseModel):
@@ -97,28 +138,34 @@ class FinishStepUIMessageStreamPart(BaseModel):
 class StartUIMessageStreamPart(BaseModel):
     type: Literal["start"] = "start"
     messageId: Optional[str] = None
-    messageMetadata: Optional[ProviderMetadata] = None
+    messageMetadata: Optional[Any] = None
 
 
 class FinishUIMessageStreamPart(BaseModel):
     type: Literal["finish"] = "finish"
-    messageMetadata: Optional[ProviderMetadata] = None
+    messageMetadata: Optional[Any] = None
 
 
 class MessageMetadataUIMessageStreamPart(BaseModel):
     type: Literal["message-metadata"] = "message-metadata"
-    messageMetadata: ProviderMetadata
+    messageMetadata: Any
 
 
 # Union of all possible stream parts
 UIMessageStreamPart = Union[
-    TextUIMessageStreamPart,
+    TextStartUIMessageStreamPart,
+    TextDeltaUIMessageStreamPart,
+    TextEndUIMessageStreamPart,
     ErrorUIMessageStreamPart,
     ToolInputStartUIMessageStreamPart,
     ToolInputDeltaUIMessageStreamPart,
     ToolInputAvailableUIMessageStreamPart,
     ToolOutputAvailableUIMessageStreamPart,
+    ToolOutputErrorUIMessageStreamPart,
     ReasoningUIMessageStreamPart,
+    ReasoningStartUIMessageStreamPart,
+    ReasoningDeltaUIMessageStreamPart,
+    ReasoningEndUIMessageStreamPart,
     ReasoningPartFinishUIMessageStreamPart,
     SourceUrlUIMessageStreamPart,
     SourceDocumentUIMessageStreamPart,
@@ -143,15 +190,18 @@ def is_data_ui_message_stream_part(part: UIMessageStreamPart) -> bool:
 DATA_TYPES = TypeVar("DATA_TYPES", bound=UIDataTypes)
 
 
-class DataUIMessageStreamPart(BaseModel, Generic[DATA_TYPES]):
+class GenericDataUIMessageStreamPart(BaseModel, Generic[DATA_TYPES]):
+    """Generic version of DataUIMessageStreamPart with proper typing."""
     type: str  # Will be validated to start with 'data-'
     id: Optional[str] = None
     data: DATA_TYPES
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        if not self.type.startswith("data-"):
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v):
+        if not v.startswith("data-"):
             raise ValueError("Data stream part type must start with 'data-'")
+        return v
 
 
 # Type alias for InferUIMessageStreamPart

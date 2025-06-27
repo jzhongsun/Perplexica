@@ -53,20 +53,13 @@ from semantic_kernel.contents import AuthorRole
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+LOCAL_SEARCH_PLUGIN_NAME = "local_search"
+LOCAL_SEARCH_FUNCTION_NAME = "local_search"
+
 WEB_SEARCH_PLUGIN_NAME = "web_search"
 WEB_SEARCH_AND_FETCH_FUNCTION_NAME = "search_and_fetch"
 WEB_SEARCH_FUNCTION_NAME = "web_search"
 WEB_PAGE_FETCH_FUNCTION_NAME = "web_page_fetch"
-
-
-class DocumentSearchResult(TypedDict):
-    content: str
-    metadata: dict[str, str]
-
-
-class DocumentSearchResults(TypedDict):
-    query: str
-    docs: list[DocumentSearchResult]
 
 
 class MetaSearchAgentConfig(KernelBaseSettings):
@@ -79,23 +72,13 @@ class MetaSearchAgentConfig(KernelBaseSettings):
     active_engines: list[str] = Field(default_factory=list)
 
 
-class MetaSearchDoc(TypedDict):
-    content: str
-    metadata: dict[str, str]
-
-
-class MetaSearchResults(BaseModel):
-    query: str
-    num_results: int = Field(default=0)
-    results: List[MetaSearchDoc] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
 class WebSearchAndFetchResult(BaseModel):
     request_id: str
-    request_type: str # web_search, web_page_fetch
+    request_type: str  # web_search, web_page_fetch
     query: str | None = Field(default=None)
     arguments: Optional[dict[str, Any]] = Field(default=None)
     result: Optional[Any] = Field(default=None)
+
 
 @register_agent_type("meta_search_agent")
 class MetaSearchAgent(DeclarativeSpecMixin, Agent):
@@ -296,93 +279,110 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
             ):
                 logger.info(f"handling function_call = \n{function_call}")
                 function_call_arguments = json.loads(function_call.arguments)
-                function_call_results : List[Any] = []
+                function_call_results: List[Any] = []
                 async for search_and_fetch_result in self.__web_search_and_fetch(
-                    function_call_arguments["query"], language=function_call_arguments["language"]
+                    function_call_arguments["query"],
+                    language=function_call_arguments["language"],
                 ):
                     result: WebSearchAndFetchResult = search_and_fetch_result
                     logger.info(f"__web_search_and_fetch result = {result}")
-                    if result.request_type == 'web_page_fetch_begin':
+                    if result.request_type == "web_page_fetch_begin":
                         yield AgentResponseItem(
                             message=StreamingChatMessageContent(
                                 role=AuthorRole.ASSISTANT,
                                 items=[
                                     FunctionCallContent(
                                         id=result.request_id,
-                                        name=f'{WEB_SEARCH_PLUGIN_NAME}-{WEB_PAGE_FETCH_FUNCTION_NAME}',
+                                        name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_PAGE_FETCH_FUNCTION_NAME}",
                                         function_call_id=result.request_id,
                                         function_name=WEB_PAGE_FETCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         arguments=result.arguments,
                                     )
-                                    ],
-                                choice_index=(full_completion.choice_index if full_completion else 0),
+                                ],
+                                choice_index=(
+                                    full_completion.choice_index
+                                    if full_completion
+                                    else 0
+                                ),
                                 metadata={
                                     "internal_type": "artifact",
                                 },
                             ),
                             thread=agent_thread,
                         )
-                    elif result.request_type == 'web_page_fetch_end':
+                    elif result.request_type == "web_page_fetch_end":
                         yield AgentResponseItem(
                             message=StreamingChatMessageContent(
                                 role=AuthorRole.TOOL,
                                 items=[
                                     FunctionResultContent(
                                         id=result.request_id,
-                                        name=f'{WEB_SEARCH_PLUGIN_NAME}-{WEB_PAGE_FETCH_FUNCTION_NAME}',
+                                        name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_PAGE_FETCH_FUNCTION_NAME}",
                                         function_call_id=result.request_id,
                                         function_name=WEB_PAGE_FETCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         result=result.result,
                                     )
-                                    ],
-                                choice_index=(full_completion.choice_index if full_completion else 0),
+                                ],
+                                choice_index=(
+                                    full_completion.choice_index
+                                    if full_completion
+                                    else 0
+                                ),
                                 metadata={
                                     "internal_type": "artifact",
-                                    },
+                                },
                             ),
                             thread=agent_thread,
                         )
                         if result.result.get("success"):
                             function_call_results.append(result.result)
 
-                    elif result.request_type == 'web_search_begin':
+                    elif result.request_type == "web_search_begin":
                         yield AgentResponseItem(
                             message=StreamingChatMessageContent(
                                 role=AuthorRole.ASSISTANT,
                                 items=[
                                     FunctionCallContent(
                                         id=result.request_id,
-                                        name=f'{WEB_SEARCH_PLUGIN_NAME}-{WEB_SEARCH_FUNCTION_NAME}',
+                                        name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_SEARCH_FUNCTION_NAME}",
                                         function_call_id=result.request_id,
                                         function_name=WEB_SEARCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         arguments=result.arguments,
                                     ),
-                                    ],
-                                choice_index=(full_completion.choice_index if full_completion else 0),
+                                ],
+                                choice_index=(
+                                    full_completion.choice_index
+                                    if full_completion
+                                    else 0
+                                ),
                                 metadata={
                                     "internal_type": "artifact",
                                 },
                             ),
                             thread=agent_thread,
                         )
-                    elif result.request_type == 'web_search_end':
+                    elif result.request_type == "web_search_end":
                         yield AgentResponseItem(
                             message=StreamingChatMessageContent(
                                 role=AuthorRole.TOOL,
                                 items=[
                                     FunctionResultContent(
                                         id=result.request_id,
-                                        name=f'{WEB_SEARCH_PLUGIN_NAME}-{WEB_SEARCH_FUNCTION_NAME}',
+                                        name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_SEARCH_FUNCTION_NAME}",
                                         function_call_id=result.request_id,
                                         function_name=WEB_SEARCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         result=result.result,
                                     ),
                                 ],
-                                choice_index=(full_completion.choice_index if full_completion else 0),
+                                choice_index=(
+                                    full_completion.choice_index
+                                    if full_completion
+                                    else 0
+                                ),
                                 metadata={
                                     "internal_type": "artifact",
                                 },
@@ -391,34 +391,36 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                         )
                     else:
                         raise ValueError(f"Unknown request_type: {result.request_type}")
-                                    
+
                 function_call_result_message = StreamingChatMessageContent(
-                        role=AuthorRole.TOOL,
-                        items=[
-                            FunctionResultContent(
-                                id=str(uuid.uuid4()),
-                                name=function_call.name,
-                                function_call_id=function_call.id,
-                                function_name=WEB_SEARCH_AND_FETCH_FUNCTION_NAME,
-                                plugin_name=WEB_SEARCH_PLUGIN_NAME,
-                                result=function_call_results,
-                            )
-                        ],
-                        choice_index=(
-                            full_completion.choice_index if full_completion else 0
-                        ),
-                        metadata=(
-                            full_completion.metadata if full_completion else {}
-                        ),
-                    )
-                logger.info(f"function_call_result_message = \n{function_call_result_message}")
+                    role=AuthorRole.TOOL,
+                    items=[
+                        FunctionResultContent(
+                            id=str(uuid.uuid4()),
+                            name=function_call.name,
+                            function_call_id=function_call.id,
+                            function_name=WEB_SEARCH_AND_FETCH_FUNCTION_NAME,
+                            plugin_name=WEB_SEARCH_PLUGIN_NAME,
+                            result=function_call_results,
+                        )
+                    ],
+                    choice_index=(
+                        full_completion.choice_index if full_completion else 0
+                    ),
+                    metadata=(full_completion.metadata if full_completion else {}),
+                )
+                logger.info(
+                    f"function_call_result_message = \n{function_call_result_message}"
+                )
 
                 yield AgentResponseItem(
                     message=function_call_result_message,
                     thread=agent_thread,
                 )
         chat_history.add_message(function_call_result_message)
-        logger.info(f"chat_history = \n{chat_history.model_dump_json(indent=2, exclude_none=True)}")
+        logger.info(
+            f"chat_history = \n{chat_history.model_dump_json(indent=2, exclude_none=True)}"
+        )
         async for (
             message_content_chunk
         ) in inner_chat_completion_service.get_streaming_chat_message_content(
@@ -433,7 +435,6 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                 message=message_content_chunk,
                 thread=agent_thread,
             )
-        
 
     @override
     @classmethod
@@ -462,9 +463,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
         query: Annotated[str, "The query to search for"] = None,
         language: Annotated[str, "The language to search for"] = "en",
         links: Annotated[list[str], "The links to search for"] = None,
-    ) -> Annotated[
-        AsyncGenerator[WebSearchAndFetchResult], "The search results"
-    ]:
+    ) -> Annotated[AsyncGenerator[WebSearchAndFetchResult], "The search results"]:
         import httpx
 
         WEB_SEARCH_BASE_URL = os.getenv("WEB_SEARCH_BASE_URL", "http://localhost:9000")
@@ -473,7 +472,9 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
         async def __fetch_content_of_url(
             url: str, query: str | None = None, title: str | None = None
         ) -> dict[str, Any]:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(60.0 * 3, connect=60.0)) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(60.0 * 3, connect=60.0)
+            ) as client:
                 response = await client.post(
                     urljoin(WEB_SEARCH_BASE_URL, "/api/v1/web_page_fetch"),
                     json={"url": url, "query": query, "title": title},
@@ -482,7 +483,9 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                 return response.json()
 
         async def __web_search(query: str, language: str = "en") -> dict[str, Any]:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=60.0)) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(60.0, connect=60.0)
+            ) as client:
                 response = await client.post(
                     urljoin(WEB_SEARCH_BASE_URL, "/api/v1/web_search"),
                     json={"query": query, "language": language},
@@ -496,7 +499,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                 request_id = str(uuid.uuid4())
                 yield WebSearchAndFetchResult(
                     request_id=request_id,
-                    request_type='web_page_fetch_begin',
+                    request_type="web_page_fetch_begin",
                     query=query,
                     arguments={
                         "url": link,
@@ -505,7 +508,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                 page_content = await __fetch_content_of_url(link)
                 yield WebSearchAndFetchResult(
                     request_id=request_id,
-                    request_type='web_page_fetch_end',
+                    request_type="web_page_fetch_end",
                     query=query,
                     result=page_content,
                 )
@@ -513,14 +516,18 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
             request_id = str(uuid.uuid4())
             yield WebSearchAndFetchResult(
                 request_id=request_id,
-                request_type='web_search_begin',
+                request_type="web_search_begin",
                 query=query,
+                arguments={
+                    "query": query,
+                    "language": language,
+                },
             )
             results = await __web_search(query, language)
-            results['results'] = results.get("results", [])[0:1]
+            results["results"] = results.get("results", [])[0:2]
             yield WebSearchAndFetchResult(
                 request_id=request_id,
-                request_type='web_search_end',
+                request_type="web_search_end",
                 query=query,
                 result=results,
             )
@@ -531,7 +538,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                 request_id = str(uuid.uuid4())
                 yield WebSearchAndFetchResult(
                     request_id=request_id,
-                    request_type='web_page_fetch_begin',
+                    request_type="web_page_fetch_begin",
                     query=query,
                     arguments={
                         "url": url,
@@ -543,7 +550,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                 )
                 yield WebSearchAndFetchResult(
                     request_id=request_id,
-                    request_type='web_page_fetch_end',
+                    request_type="web_page_fetch_end",
                     query=query,
                     result=page_content,
                 )
