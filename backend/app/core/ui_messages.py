@@ -1,7 +1,7 @@
 """UI message types and interfaces for communication between frontend and API routes."""
 from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import BaseModel, Field
-
+import uuid
 # Type aliases
 UIDataTypes = Dict[str, Any]
 UITools = Dict[str, Dict[str, Any]]
@@ -101,7 +101,7 @@ UIMessagePart = Union[
 
 class UIMessage(BaseModel):
     """UI Message interface for client-API communication."""
-    id: str = Field(..., description="A unique identifier for the message")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="A unique identifier for the message")
     role: Literal['system', 'user', 'assistant'] = Field(..., description="Role of the message sender (system/user/assistant)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadata for the message")
     parts: List[UIMessagePart] = Field(..., description="Parts of the message")

@@ -7,9 +7,11 @@ from datetime import datetime, timezone
 import logging
 import traceback
 
+from app.core.ui_message_stream import ErrorUIMessageStreamPart, FinishUIMessageStreamPart, StartUIMessageStreamPart, TextDeltaUIMessageStreamPart, TextEndUIMessageStreamPart, TextStartUIMessageStreamPart, UIMessageStreamPart
 from app.db.models import DbMessage, DbMessagePart
 from app.db.schemas import ChatCreate, User
 from fastapi import HTTPException
+from pydantic import BaseModel
 
 from app.db.service import UserDbService
 
@@ -123,7 +125,7 @@ class ChatService:
         return a2a_client
 
     async def build_message_with_history(
-        self, chat_id: str, user_message: a2a_types.Message
+        self, chat_id: str, user_message: UIMessage, task_id: str | None = None, context_id: str | None = None
     ) -> a2a_types.Message:
         messages_response = await self.fetch_messages_of_chat(
             chat_id=chat_id, offset=0, limit=4
@@ -140,14 +142,20 @@ class ChatService:
 
         user_message_content = ""
         for part in user_message.parts:
-            if isinstance(part.root, a2a_types.TextPart):
-                user_message_content += part.root.text
+            if part.type == "text":
+                user_message_content += part.text
 
         if len(context) == 0:
-            return user_message
+            return a2a_types.Message(
+                messageId=user_message.id,
+                parts=[
+                    a2a_types.TextPart(text=user_message.content())
+                ],
+                role=a2a_types.Role.user,
+            )
         else:
             return a2a_types.Message(
-                messageId=user_message.messageId,
+                messageId=user_message.id,
                 parts=[
                     a2a_types.TextPart(
                         text=CONTEXTUAL_QUERY_PROMPT_TEMPLATE.format(
@@ -157,14 +165,14 @@ class ChatService:
                 ],
                 role=a2a_types.Role.user,
                 metadata=user_message.metadata,
-                taskId=user_message.taskId,
-                contextId=user_message.contextId,
-                extensions=user_message.extensions,
+                taskId=task_id,
+                contextId=context_id,
+                extensions=[],
             )
 
     async def chat_stream(
         self, chat_id: str, messages: List[UIMessage], options: Dict[str, Any] = {}
-    ) -> AsyncGenerator[a2a_types.SendStreamingMessageResponse, None]:
+    ) -> AsyncGenerator[UIMessageStreamPart]:
 
         chat = await self.db.fetch_chat(chat_id) if chat_id else None
         if chat is None:
@@ -174,14 +182,14 @@ class ChatService:
         agent_client = await self.resolve_agent_client(options)
 
         request_id = str(uuid.uuid4())
-        user_message = ui_message_to_a2a_message(messages[-1], chat_id)
-        final_user_message = await self.build_message_with_history(chat_id, user_message)
+        final_user_message_ui : UIMessage = messages[-1]
+        final_user_message_a2a = await self.build_message_with_history(chat_id, final_user_message_ui)
 
         stream = agent_client.send_message_streaming(
             request=a2a_types.SendStreamingMessageRequest(
                 id=request_id,
                 params=a2a_types.MessageSendParams(
-                    message=final_user_message,
+                    message=final_user_message_a2a,
                     metadata={},
                 ),
             )
@@ -190,97 +198,127 @@ class ChatService:
         context_id = None
         agent_id = "entry_agent"
 
-        response_messages = {}
-        async for response in stream:
-            yield response
+        message_id = str(uuid.uuid4())
+        
+        response_message_parts_ref : Dict[str, UIMessagePart] = {}
+        final_response_message_ui : UIMessage = UIMessage(
+            id=message_id,
+            role="assistant",
+            parts=[],
+            metadata={
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        yield StartUIMessageStreamPart(messageId=message_id, messageMetadata=final_response_message_ui.metadata)
+        try:
+            class ActiveMessageProps(BaseModel):
+                reference_message_id: Optional[str] = None
+                text_part_id: Optional[str] = None
+                reasoning_part_id: Optional[str] = None
 
-            if isinstance(response.root.result, a2a_types.JSONRPCErrorResponse):
-                logger.error(f"Error in chat stream: {response.root.result.error}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error in chat stream: {response.root.result.error}",
-                )
+            active_message_props = ActiveMessageProps()
 
-            success_response = response.root
-            if isinstance(success_response.result, a2a_types.TaskArtifactUpdateEvent):
-                await self.db.create_artifact(
-                    success_response.result.artifact, task_id, context_id
-                )
-            elif isinstance(success_response.result, a2a_types.TaskStatusUpdateEvent):
-                # logger.info(f"TaskStatusUpdateEvent: {success_response}")
-                status = success_response.result.status
-                if status.state == a2a_types.TaskState.submitted:
-                    continue
-
-                status_message = success_response.result.status.message
-                if status_message is None:
-                    continue
-
-                if status_message.messageId not in response_messages.keys():
-                    response_messages[status_message.messageId] = status_message
-
-                # append the content of the status message to the previous message
-                previous_message: a2a_types.Message = response_messages.get(
-                    status_message.messageId
-                )
-                if previous_message is None or previous_message == status_message:
-                    continue
-
-                # logger.info(f"Appending status message to previous message: {previous_message} and {status_message}")
-                previous_message.parts.extend(status_message.parts)
-
-            elif isinstance(success_response.result, a2a_types.Task):
-                task = response.root.result
-                if task.status.state == a2a_types.TaskState.submitted:
-                    task_id = task.id
-                    context_id = task.contextId
-                    await self.db.create_task(task, chat_id, agent_id)
-                    await self.db.create_message(
-                        user_message, chat_id, task_id, context_id
-                    )
-                    if user_message.parts and len(user_message.parts) > 0:
-                        await self.db.create_message_parts(
-                            user_message.messageId, user_message.parts
-                        )
-                elif task.status.state == a2a_types.TaskState.failed:
-                    logger.error(f"Task failed: {task}")
-                elif task.status.state == a2a_types.TaskState.completed:
-                    logger.info(f"Task completed: {task}")
-                elif task.status.state == a2a_types.TaskState.working:
-                    logger.info(f"Task working: {task}")
-                else:
-                    logger.info(f"Task other status: {task}")
-
-            elif isinstance(success_response.result, a2a_types.Message):
-                logger.info(f"a2a - message: {success_response}")
-                await self.db.create_message(
-                    success_response, chat_id, task_id, context_id
-                )
-                if (
-                    success_response.result.parts
-                    and len(success_response.result.parts) > 0
-                ):
-                    await self.db.create_message_parts(
-                        success_response.result.messageId, success_response.result.parts
+            async for response in stream:
+                if isinstance(response.root.result, a2a_types.JSONRPCErrorResponse):
+                    logger.error(f"Error in chat stream: {response.root.result.error}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Error in chat stream: {response.root.result.error}",
                     )
 
-        logger.info(f"Creating final messages: {response_messages.keys()}")
-        for message_id, message in response_messages.items():
-            await self.db.create_message(message, chat_id, task_id, context_id)
-            if message.parts and len(message.parts) > 0:
-                input_parts: List[a2a_types.Part] = message.parts
-                final_parts: List[a2a_types.Part] = []
-                final_text_part: a2a_types.Part = None
-                for part in input_parts:
-                    if isinstance(part.root, a2a_types.TextPart):
-                        if final_text_part is None:
-                            final_text_part = part
-                            final_parts.append(final_text_part)
+                success_response = response.root
+                if isinstance(success_response.result, a2a_types.TaskArtifactUpdateEvent):
+                    await self.db.create_artifact(
+                        success_response.result.artifact, task_id, context_id
+                    )
+                elif isinstance(success_response.result, a2a_types.TaskStatusUpdateEvent):
+                    # logger.info(f"TaskStatusUpdateEvent: {success_response}")
+                    status = success_response.result.status
+                    if status.state == a2a_types.TaskState.submitted:
+                        continue
+
+                    status_message = success_response.result.status.message
+                    if status_message is None:
+                        continue
+
+                    if active_message_props.reference_message_id != status_message.messageId:
+                        if active_message_props.text_part_id is not None:
+                            yield TextEndUIMessageStreamPart(id=active_message_props.text_part_id)
+                            active_message_props.text_part_id = None
+                        active_message_props.reference_message_id = status_message.messageId
+                    
+                    for part in status_message.parts:
+                        if isinstance(part.root, a2a_types.TextPart):
+                            if active_message_props.text_part_id is None:
+                                active_message_props.text_part_id = str(uuid.uuid4())
+                                yield TextStartUIMessageStreamPart(id=active_message_props.text_part_id)
+                            yield TextDeltaUIMessageStreamPart(id=active_message_props.text_part_id, delta=part.root.text)
+                            if response_message_parts_ref.get(status_message.messageId) is None:
+                                response_message_parts_ref[status_message.messageId] = TextUIPart(text=part.root.text)
+                                final_response_message_ui.parts.append(response_message_parts_ref[status_message.messageId])
+                            else:
+                                response_message_parts_ref[status_message.messageId].text += part.root.text
+                            
+                        elif isinstance(part.root, a2a_types.DataPart):
+                            logger.info(f"Data part: {part.root}")
+                        elif isinstance(part.root, a2a_types.FilePart):
+                            logger.info(f"File part: {part.root}")
                         else:
-                            final_text_part.root.text += part.root.text
+                            logger.info(f"Unknown part: {part.root}")
+                    
+                elif isinstance(success_response.result, a2a_types.Task):
+                    task = response.root.result
+                    if task.status.state == a2a_types.TaskState.submitted:
+                        task_id = task.id
+                        context_id = task.contextId
+                        await self.db.create_task(task, chat_id, agent_id)
+                        await self.db.create_message(
+                            final_user_message_ui, chat_id, task_id, context_id
+                        )
+                        if final_user_message_ui.parts and len(final_user_message_ui.parts) > 0:
+                            await self.db.create_message_parts(
+                                final_user_message_ui.id, final_user_message_ui.parts
+                            )
+                    elif task.status.state == a2a_types.TaskState.failed:
+                        logger.error(f"Task failed: {task}")
+                    elif task.status.state == a2a_types.TaskState.completed:
+                        logger.info(f"Task completed: {task}")
+                    elif task.status.state == a2a_types.TaskState.working:
+                        logger.info(f"Task working: {task}")
                     else:
-                        final_parts.append(part)
-                await self.db.create_message_parts(message_id, final_parts)
+                        logger.info(f"Task other status: {task}")
+
+                elif isinstance(success_response.result, a2a_types.Message):
+                    logger.info(f"a2a - message: {success_response}")
+                    await self.db.create_message(
+                        success_response, chat_id, task_id, context_id
+                    )
+                    if (
+                        success_response.result.parts
+                        and len(success_response.result.parts) > 0
+                    ):
+                        await self.db.create_message_parts(
+                            success_response.result.messageId, success_response.result.parts
+                        )
+            
+            if active_message_props.text_part_id is not None:
+                yield TextEndUIMessageStreamPart(id=active_message_props.text_part_id)
+
+            logger.info(f"Creating final message parts: {response_message_parts_ref.keys()}")
+            completed_at = datetime.now(timezone.utc).isoformat()
+            final_response_message_ui.metadata["completedAt"] = completed_at
+            await self.db.create_message(final_response_message_ui, chat_id, task_id, context_id)
+            await self.db.create_message_parts(final_response_message_ui.id, final_response_message_ui.parts)
+            yield FinishUIMessageStreamPart(messageId=message_id, messageMetadata={
+                "completedAt": completed_at,
+            })
+
+        except Exception as e:
+            error_msg = (
+                f"Failed to create chat: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+            )
+            logger.error(error_msg)
+            yield ErrorUIMessageStreamPart(errorText=str(e))
 
     async def create_chat(self, request: ChatRequest) -> ChatHistory:
         """Create a new chat."""
@@ -474,7 +512,7 @@ class ChatService:
             messages = await self.db.fetch_messages(chat_id, offset=offset, limit=limit)
             message_ids = [message.id for message in messages]
             message_parts = await self.db.fetch_message_parts(message_ids)
-            message_parts_dict = {}
+            message_parts_dict : Dict[str, List[DbMessagePart]] = {}
             for part in message_parts:
                 if part.message_id not in message_parts_dict:
                     message_parts_dict[part.message_id] = []

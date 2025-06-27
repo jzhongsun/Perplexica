@@ -1,15 +1,14 @@
 from typing import List, Optional
 import uuid
-
-from sqlalchemy import select, event, delete
+from datetime import datetime, timezone
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from .models import DbChat, DbMessage, DbTask, DbUserBase, DbMessagePart, DbArtifactPart, DbArtifact
 from .schemas import ChatCreate, MessageCreate
 from .database import get_user_engine, get_user_session
-
-from a2a.types import Artifact, Message, Task, Role, Part
+from app.core.ui_messages import UIMessage, UIMessagePart
+import a2a.types as a2a_types
 from loguru import logger
 
 class UserDbService:
@@ -143,23 +142,23 @@ class UserDbService:
         return list(result.scalars().all())
     
     
-    def __build_message_content(self, message: Message) -> str:
+    def __build_message_content(self, message: UIMessage) -> str:
         content = ""
         for part in message.parts:
-            if part.root.kind == "text":
-                content += part.root.text
+            if part.type == "text":
+                content += part.text
         return content
     
-    async def create_message(self, message: Message, chat_id: str, task_id: str, context_id: str | None = None) -> DbMessage:
+    async def create_message(self, message: UIMessage, chat_id: str, task_id: str, context_id: str | None = None) -> DbMessage:
         message = DbMessage(
-            id=message.messageId,
+            id=message.id,
             content=self.__build_message_content(message),
             chat_id=chat_id,
-            role="assistant" if message.role == Role.agent else "user",
+            role=message.role,
             task_id=task_id,
             context_id=context_id,
             _metadata=message.metadata,
-            extensions=message.extensions,
+            extensions=[],
         )
         self.session.add(message)
         await self.session.commit()
@@ -177,7 +176,7 @@ class UserDbService:
         result = await self.session.execute(query)
         return list(result.scalars().all())
     
-    async def create_artifact(self, artifact: Artifact, task_id: str, context_id: str | None = None) -> DbArtifact:
+    async def create_artifact(self, artifact: a2a_types.Artifact, task_id: str, context_id: str | None = None) -> DbArtifact:
         artifact = DbArtifact(
             id=artifact.artifactId,
             name=artifact.name,
@@ -203,13 +202,15 @@ class UserDbService:
         result = await self.session.execute(query)
         return list(result.scalars().all())
     
-    async def create_message_parts(self, message_id: str, parts: List[Part]) -> List[DbMessagePart]:
+    async def create_message_parts(self, message_id: str, parts: List[UIMessagePart]) -> List[DbMessagePart]:
         message_parts = [DbMessagePart(
             id=str(uuid.uuid4()),
             message_id=message_id,
-            part_type=part.root.kind,
-            part_data=part.root.model_dump(exclude_none=True),
-            _metadata=part.root.metadata if hasattr(part.root, "metadata") else None,
+            part_type=part.type,
+            part_data=part.model_dump(exclude_none=True),
+            _metadata={
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            },
             part_index=index,
         ) for index, part in enumerate(parts)]
         self.session.add_all(message_parts)
@@ -222,13 +223,15 @@ class UserDbService:
         result = await self.session.execute(query)
         return list(result.scalars().all())    
     
-    async def create_artifact_parts(self, artifact_id: str, parts: List[Part]) -> List[DbArtifactPart]:
+    async def create_artifact_parts(self, artifact_id: str, parts: List[a2a_types.Part]) -> List[DbArtifactPart]:
         artifact_parts = [DbArtifactPart(
             id=str(uuid.uuid4()),
             artifact_id=artifact_id,
-            part_type=part.root.kind,
-            part_data=part.root.model_dump(exclude_none=True),
-            _metadata=part.root.metadata if hasattr(part.root, "metadata") else None,
+            part_type=part.type,
+            part_data=part.model_dump(exclude_none=True) if part.type == "text" else {},
+            _metadata={
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            },
             part_index=index,
         ) for index, part in enumerate(parts)]
         self.session.add_all(artifact_parts)
@@ -242,7 +245,7 @@ class UserDbService:
         return list(result.scalars().all())    
     
     
-    async def create_task(self, task: Task, chat_id: str, agent_id: str) -> DbTask:
+    async def create_task(self, task: a2a_types.Task, chat_id: str, agent_id: str) -> DbTask:
         task = DbTask(
             id=task.id,
             chat_id=chat_id,
