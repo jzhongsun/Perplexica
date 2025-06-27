@@ -173,7 +173,7 @@ const MessageBox = ({
                 </div>)}
                 {uiMessage.parts.map((part, index) => (
                   part.type === 'text' && (
-                    <div className='flex flex-col pt-2 pb-2'>
+                    <div key={uiMessage.id + "_" + index} className='flex flex-col pb-4'>
                       <MemoizedMarkdown
                         key={uiMessage.id + "_" + index}
                         content={part.text}
@@ -204,7 +204,7 @@ const MessageBox = ({
                             start();
                           }
                         }}
-                        className="p-2 text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black dark:hover:text-white"
+                        className="text-black/70 dark:text-white/70 rounded-xl hover:bg-light-secondary dark:hover:bg-dark-secondary transition duration-200 hover:text-black dark:hover:text-white"
                         title={speechStatus === 'started' ? t('chat.message.stopSpeaking') : t('chat.message.speak')}
                       >
                         {speechStatus === 'started' ? (
