@@ -60,12 +60,16 @@ async def handle_chat_stream(
 
     async def event_generator():
         stream = chat_service.chat_stream(chat_id, request.messages, request.options)
-        try:
-            last_message_id = None
-            
+        try:            
+            message_id = str(uuid.uuid4())
+            yield {
+                "id": str(uuid.uuid4()),
+                "event": "message",
+                "data": StartUIMessageStreamPart(messageId=message_id).model_dump_json(exclude_none=True),
+            }
+
             class ActiveMessageProps(BaseModel):
                 reference_message_id: Optional[str] = None
-                message_id: Optional[str] = None
                 text_part_id: Optional[str] = None
                 reasoning_part_id: Optional[str] = None
 
@@ -84,16 +88,7 @@ async def handle_chat_stream(
                         if response_message is None:
                             continue
                         
-                        if active_message_props.reference_message_id is None:
-                            active_message_props.reference_message_id = response_message.messageId
-                            active_message_props.message_id = str(uuid.uuid4())
-                            yield {
-                                "id": str(uuid.uuid4()),
-                                "event": "message",
-                                "data": StartUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
-                            }
                         if active_message_props.reference_message_id != response_message.messageId:
-                            assert active_message_props.message_id is not None
                             if active_message_props.text_part_id is not None:
                                 yield {
                                     "id": str(uuid.uuid4()),
@@ -101,25 +96,12 @@ async def handle_chat_stream(
                                     "data": TextEndUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
                                 }
                                 active_message_props.text_part_id = None
-
-                            # previous message is finished, start a new one
-                            yield {
-                                "id": str(uuid.uuid4()),
-                                "event": "message",
-                                "data": FinishUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
-                            }
                             active_message_props.reference_message_id = response_message.messageId
-                            active_message_props.message_id = str(uuid.uuid4())
-                            yield {
-                                "id": str(uuid.uuid4()),
-                                "event": "message",
-                                "data": StartUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
-                            }
-                        assert active_message_props.message_id is not None
+
                         for part in response_message.parts:
                             if isinstance(part.root, a2a_types.TextPart):
                                 if active_message_props.text_part_id is None:
-                                    active_message_props.text_part_id = str(uuid.uuid4())
+                                    active_message_props.text_part_id = response_message.messageId
                                     yield {
                                         "id": str(uuid.uuid4()),
                                         "event": "message",
@@ -154,14 +136,13 @@ async def handle_chat_stream(
                     "data": TextEndUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
                 }
                 active_message_props.text_part_id = None
-            if active_message_props.message_id is not None:
-                yield {
-                    "id": str(uuid.uuid4()),
-                    "event": "message",
-                    "data": FinishUIMessageStreamPart(messageId=active_message_props.message_id).model_dump_json(exclude_none=True),
-                }
-                active_message_props.message_id = None
-                active_message_props.reference_message_id = None
+                
+
+            yield {
+                "id": str(uuid.uuid4()),
+                "event": "message",
+                "data": FinishUIMessageStreamPart(messageId=message_id).model_dump_json(exclude_none=True),
+            }
         except Exception as e:
             error_msg = f"Error in chat stream: {str(e)}\nTraceback:\n{traceback.format_exc()}"
             logger.error(error_msg)
