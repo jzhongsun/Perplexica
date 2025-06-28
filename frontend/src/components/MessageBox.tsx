@@ -13,22 +13,16 @@ import {
   User,
   SquareTerminal
 } from 'lucide-react';
-import Markdown, { MarkdownToJSX } from 'markdown-to-jsx';
 import Copy from './MessageActions/Copy';
 import Rewrite from './MessageActions/Rewrite';
 import MessageSources from './MessageSources';
 import SearchImages from './SearchImages';
 import SearchVideos from './SearchVideos';
 import { useSpeech } from 'react-text-to-speech';
-import ThinkBox from './ThinkBox';
 import { UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
 import { useTranslation } from 'react-i18next';
-import { MemoizedMarkdown } from './ui/MemoizedMarkdown';
-
-const ThinkTagProcessor = ({ children }: { children: React.ReactNode }) => {
-  return <ThinkBox content={children as string} />;
-};
+import { PartRenderer } from './parts/PartRenderer';
 
 const MessageBox = ({
   uiMessage,
@@ -91,7 +85,7 @@ const MessageBox = ({
                 }
 
                 const source = message.sources?.[number - 1];
-                const url = source?.metadata?.url;
+                const url = (source as any)?.metadata?.url || (source as any)?.url;
 
                 if (url) {
                   return `<a href="${url}" target="_blank" className="bg-light-secondary dark:bg-dark-secondary px-1 rounded ml-1 no-underline text-xs text-black/70 dark:text-white/70 relative">${numStr}</a>`;
@@ -114,14 +108,6 @@ const MessageBox = ({
   }, [uiMessage]);
 
   const { speechStatus, start, stop } = useSpeech({ text: speechMessage });
-
-  const markdownOverrides: MarkdownToJSX.Options = {
-    overrides: {
-      think: {
-        component: ThinkTagProcessor,
-      },
-    },
-  };
 
   return (
     <div>
@@ -159,33 +145,32 @@ const MessageBox = ({
             >
               <div className="flex flex-col space-y-2">
                 {isLast && loading && (
-                <div className="flex flex-row items-center space-x-2">
-                  <Disc3
-                    className={cn(
-                      'text-black dark:text-white',
-                      isLast && loading ? 'animate-spin' : 'animate-none',
-                    )}
-                    size={20}
-                  />
-                  <h3 className="text-black dark:text-white text-xl">
-                    Answering...
-                  </h3>
-                </div>)}
-                {uiMessage.parts.map((part, index) => (
-                  part.type === 'text' && (
+                  <div className="flex flex-row items-center space-x-2">
+                    <Disc3
+                      className={cn(
+                        'text-black dark:text-white',
+                        isLast && loading ? 'animate-spin' : 'animate-none',
+                      )}
+                      size={20}
+                    />
+                    <h3 className="text-black dark:text-white text-xl">
+                      Answering...
+                    </h3>
+                  </div>)}
+                {uiMessage.parts.map((part, index) => {
+                  // 检查是否需要跳过渲染（由于之前的插件处理了多个部分）
+                  const skipIndices = new Set<number>();
+
+                  return !skipIndices.has(index) && (
                     <div key={uiMessage.id + "_" + index} className='flex flex-col pb-4'>
-                      <MemoizedMarkdown
-                        key={uiMessage.id + "_" + index}
-                        content={part.text}
-                        className={cn(
-                          'prose prose-h1:mb-3 prose-h2:mb-2 prose-h2:mt-6 prose-h2:font-[800] prose-h3:mt-4 prose-h3:mb-1.5 prose-h3:font-[600] dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 font-[400]',
-                          'max-w-none break-words text-black dark:text-white',
-                        )}
-                        options={markdownOverrides}
+                      <PartRenderer
+                        part={part}
+                        partIndex={index}
+                        message={uiMessage}
                       />
                     </div>
-                  )
-                ))}
+                  );
+                })}
                 {loading && isLast ? null : (
                   <div className="flex flex-row items-center justify-between w-full text-black dark:text-white pt-2 -mx-2">
                     <div className="flex flex-row items-center space-x-1">

@@ -42,7 +42,8 @@ export const convertUIMessageToMessage = (uiMessage: UIMessage): Message => {
                         source: part.url,
                         type: 'url',
                         id: part.sourceId,
-                        ...part.providerMetadata
+                        url: part.url,
+                        ...(part.providerMetadata || {})
                     }
                 });
                 break;
@@ -53,7 +54,7 @@ export const convertUIMessageToMessage = (uiMessage: UIMessage): Message => {
                         source: part.filename || part.title,
                         type: part.mediaType,
                         id: part.sourceId,
-                        ...part.providerMetadata
+                        ...(part.providerMetadata || {})
                     }
                 });
                 break;

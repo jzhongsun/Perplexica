@@ -261,9 +261,22 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
         logger.info(f"function_calls = \n{function_calls}")
 
         for function_call in function_calls:
+            call_id = function_call.id
             message = StreamingChatMessageContent(
                 role=AuthorRole.ASSISTANT,
-                items=[function_call],
+                items=[FunctionCallContent(
+                    id=call_id,
+                    call_id=call_id,
+                    name=function_call.name,
+                    ai_model_id=function_call.ai_model_id,
+                    function_name=function_call.function_name,
+                    plugin_name=function_call.plugin_name,
+                    arguments=function_call.arguments if isinstance(function_call.arguments, dict) else json.loads(function_call.arguments),
+                    metadata={
+                        "inner_part_type": "tool_call",
+                        **function_call.metadata,
+                    },
+                )],
                 choice_index=full_completion.choice_index if full_completion else 0,
                 metadata=full_completion.metadata if full_completion else {},
             )
@@ -293,8 +306,8 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                                 items=[
                                     FunctionCallContent(
                                         id=result.request_id,
+                                        call_id=result.request_id,
                                         name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_PAGE_FETCH_FUNCTION_NAME}",
-                                        function_call_id=result.request_id,
                                         function_name=WEB_PAGE_FETCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         arguments=result.arguments,
@@ -318,8 +331,8 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                                 items=[
                                     FunctionResultContent(
                                         id=result.request_id,
+                                        call_id=result.request_id,
                                         name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_PAGE_FETCH_FUNCTION_NAME}",
-                                        function_call_id=result.request_id,
                                         function_name=WEB_PAGE_FETCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         result=result.result,
@@ -346,8 +359,8 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                                 items=[
                                     FunctionCallContent(
                                         id=result.request_id,
+                                        call_id=result.request_id,
                                         name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_SEARCH_FUNCTION_NAME}",
-                                        function_call_id=result.request_id,
                                         function_name=WEB_SEARCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         arguments=result.arguments,
@@ -372,7 +385,7 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                                     FunctionResultContent(
                                         id=result.request_id,
                                         name=f"{WEB_SEARCH_PLUGIN_NAME}-{WEB_SEARCH_FUNCTION_NAME}",
-                                        function_call_id=result.request_id,
+                                        call_id=result.request_id,
                                         function_name=WEB_SEARCH_FUNCTION_NAME,
                                         plugin_name=WEB_SEARCH_PLUGIN_NAME,
                                         result=result.result,
@@ -396,9 +409,9 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                     role=AuthorRole.TOOL,
                     items=[
                         FunctionResultContent(
-                            id=str(uuid.uuid4()),
+                            id=call_id,
                             name=function_call.name,
-                            function_call_id=function_call.id,
+                            call_id=function_call.id,
                             function_name=WEB_SEARCH_AND_FETCH_FUNCTION_NAME,
                             plugin_name=WEB_SEARCH_PLUGIN_NAME,
                             result=function_call_results,
