@@ -15,9 +15,10 @@ import {
   Droplets,
   Wind
 } from 'lucide-react';
-import { PartPlugin, PartRendererProps, PartRenderResult } from './index';
+import { PartRendererProps, PartRenderResult } from '../PartRenderer';
+import { PartPlugin } from './index';
 
-const WeatherToolRenderer: React.FC<{ part: any }> = ({ part }) => {
+const WeatherToolRenderer: React.FC<PartRendererProps> = ({ part, partIndex, message }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   
   const getStateIcon = () => {

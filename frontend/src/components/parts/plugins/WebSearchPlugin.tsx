@@ -13,18 +13,30 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
-import { ToolRendererProps, ToolUIPart } from '../ToolRenderer';
-import { ToolPlugin } from './index';
+import { PartRendererProps, PartRenderResult } from '../PartRenderer';
+import { PartPlugin } from './index';
+import { ToolUIPart, UITools } from 'ai';
 
-const WebSearchRenderer: React.FC<ToolRendererProps> = ({
-  toolPart,
-  isLast,
-  loading,
+interface WebSearchTool extends UITools {
+  "web_search-web_search": {
+    input: {
+      query: string;
+    };
+    output: {
+      results: any[];
+    };
+  }
+}
+
+const WebSearchRenderer: React.FC<PartRendererProps<ToolUIPart<WebSearchTool>>> = ({
+  part,
+  partIndex,
+  message,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   
   const getStateIcon = () => {
-    switch (toolPart.state) {
+    switch (part.state) {
       case 'input-streaming':
       case 'input-available':
         return <Loader2 className="animate-spin" size={16} />;
@@ -34,11 +46,11 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = ({
         return <XCircle size={16} className="text-red-500" />;
       default:
         return <Search size={16} />;
-    }
+    } 
   };
   
   const getStateText = () => {
-    switch (toolPart.state) {
+    switch (part.state) {
       case 'input-streaming':
         return 'Starting search...';
       case 'input-available':
@@ -53,38 +65,42 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = ({
   };
 
   const renderSearchResults = () => {
-    if (!toolPart.output || !Array.isArray(toolPart.output)) {
+    if (part.state !== "output-available") {
+      return null;
+    }
+    if (!part.output || !Array.isArray(part.output.results)) {
       return null;
     }
 
     return (
       <div className="space-y-3">
-        {toolPart.output.map((result: any, index: number) => (
+        {part.output.results?.map((result: any, index: number) => (
           <div 
             key={index}
-            className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-800"
+            className="pl-4"
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-                  {result.title || `Result ${index + 1}`}
-                </h4>
-                {result.snippet && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    {result.snippet}
+                <span className="text-xs text-gray-900 dark:text-gray-100 mb-2">
+                  {`${index + 1}. ${result.title}`}
+                  {result.url && (
+                    <a
+                      href={result.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="pl-4 inline-flex items-center text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {/* <Globe size={12} className="mr-1" /> */}
+                      {new URL(result.url).hostname}
+                      <ExternalLink size={12} className="ml-1" />
+                    </a>
+                  )}
+
+                </span>
+                {result.content && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400 my-2">
+                    {result.content}
                   </p>
-                )}
-                {result.url && (
-                  <a
-                    href={result.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    <Globe size={12} className="mr-1" />
-                    {new URL(result.url).hostname}
-                    <ExternalLink size={12} className="ml-1" />
-                  </a>
                 )}
               </div>
             </div>
@@ -95,47 +111,45 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = ({
   };
 
   return (
-    <div className="border border-blue-200 dark:border-blue-700 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
+    <div className="border-l-4 border-blue-600 dark:border-blue-900 pl-3 py-2 bg-blue-50/50 dark:bg-blue-900/10">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           {getStateIcon()}
           <Search size={16} className="text-blue-600 dark:text-blue-400" />
           <span className="font-medium text-gray-900 dark:text-gray-100">
-            Web Search
+            {part.input.query && (
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>Search:</strong> "{part.input.query}"
+            </div>
+          )}
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          {/* <span className="text-sm text-gray-500 dark:text-gray-400">
             {getStateText()}
-          </span>
+          </span> */}
         </div>
-        {toolPart.state === 'output-available' && (
+        {part.state === 'output-available' && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded"
+            className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
           >
             {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
         )}
       </div>
       
-      {toolPart.input?.query && (
-        <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
-          <strong>Query:</strong> "{toolPart.input.query}"
-        </div>
-      )}
-      
-      {toolPart.state === 'output-available' && isExpanded && (
+      {part.state === 'output-available' && isExpanded && (
         <div className="mt-4">
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          {/* <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
             Search Results:
-          </h4>
+          </h4> */}
           {renderSearchResults()}
         </div>
       )}
       
-      {toolPart.errorText && (
+      {part.errorText && (
         <div className="mt-3">
           <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
-            {toolPart.errorText}
+            {part.errorText}
           </div>
         </div>
       )}
@@ -143,11 +157,15 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = ({
   );
 };
 
-export const WebSearchPlugin: ToolPlugin = {
-  name: 'web_search',
+export const WebSearchPlugin: PartPlugin = {
+  type: 'tool-web_search',
   displayName: 'Web Search',
   description: 'Performs web searches and displays results',
-  component: WebSearchRenderer,
-  icon: <Search size={16} />,
-  supportedStates: ['input-streaming', 'input-available', 'output-available', 'output-error'],
+  canHandle: (partType: string) => partType === 'tool-web_search' || partType === 'tool-web_search-web_search',
+  renderer: ({ part, partIndex, message }: PartRendererProps<ToolUIPart>): PartRenderResult => {
+    return {
+      shouldRender: true,
+      content: <WebSearchRenderer part={part} partIndex={partIndex} message={message} />
+    };
+  }
 }; 

@@ -1,7 +1,6 @@
 import React from 'react';
 import { PartRendererProps, PartRenderResult } from '../PartRenderer';
 import { TextPartPlugin } from './TextPartPlugin';
-import { WebSearchToolPlugin } from './WebSearchToolPlugin';
 import { ImageSearchToolPlugin } from './ImageSearchToolPlugin';
 import { WeatherToolPlugin } from './WeatherToolPlugin';
 import { DefaultToolPlugin } from './DefaultToolPlugin';
@@ -9,12 +8,15 @@ import { ReasoningPartPlugin } from './ReasoningPartPlugin';
 import { SourcePartPlugin } from './SourcePartPlugin';
 import { FilePartPlugin } from './FilePartPlugin';
 import { DataPartPlugin } from './DataPartPlugin';
+import { WebPageFetchPlugin } from './WebPageFetchPlugin';
+import { WebSearchPlugin } from './WebSearchPlugin';
+import { WebSearchAndFetchPlugin } from './WebSearchAndFetchPlugin';
 
 export interface PartPlugin {
   type: string;                    // 部分类型，如 'text', 'tool-*', 'reasoning' 等
   displayName: string;             // 显示名称
   description: string;             // 插件描述
-  renderer: (props: PartRendererProps) => PartRenderResult;  // 渲染函数
+  renderer: (props: PartRendererProps<any>) => PartRenderResult;  // 渲染函数
   icon?: React.ReactNode;          // 可选图标
   priority?: number;               // 优先级，数字越大优先级越高
   canHandle?: (partType: string) => boolean;  // 自定义匹配函数
@@ -37,10 +39,15 @@ export const partPlugins: Record<string, PartPlugin> = {
     })
   },
   // 具体工具插件
-  'tool-web_search': WebSearchToolPlugin,
   'tool-image_search': ImageSearchToolPlugin,
   'tool-weather': WeatherToolPlugin,
   'tool-get_weather': WeatherToolPlugin,
+  'tool-web_search-web_page_fetch': WebPageFetchPlugin,
+  'tool-web_page_fetch': WebPageFetchPlugin,
+  'tool-web_search-web_search': WebSearchPlugin,
+  'tool-web_search': WebSearchPlugin,
+  'tool-web_search-search_and_fetch': WebSearchAndFetchPlugin,
+  'tool-web_search_and_fetch': WebSearchAndFetchPlugin,
   // 通用工具插件匹配器（兜底方案）
   '__tool__': DefaultToolPlugin,
   '__data__': DataPartPlugin,

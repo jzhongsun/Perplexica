@@ -1,17 +1,12 @@
 'use client';
 
 import React from 'react';
-import { UIMessage } from '@ai-sdk/react';
 import { partPlugins } from './plugins';
 import { DefaultPartRenderer } from './plugins/DefaultPartRenderer';
+import { UIMessage, UIMessagePart } from 'ai';
 
-export interface UIMessagePart {
-  type: string;
-  [key: string]: any;
-}
-
-export interface PartRendererProps {
-  part: UIMessagePart;
+export interface PartRendererProps<TUIMessagePart> {
+  part: TUIMessagePart;
   partIndex: number;
   message: UIMessage;
 }
@@ -22,7 +17,7 @@ export interface PartRenderResult {
   skipNext?: number; // 跳过接下来的N个部分
 }
 
-export const PartRenderer: React.FC<PartRendererProps> = ({
+export const PartRenderer: React.FC<PartRendererProps<UIMessagePart<any, any>>> = ({
   part,
   partIndex,
   message

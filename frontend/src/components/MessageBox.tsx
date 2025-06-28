@@ -162,7 +162,7 @@ const MessageBox = ({
                   const skipIndices = new Set<number>();
 
                   return !skipIndices.has(index) && (
-                    <div key={uiMessage.id + "_" + index} className='flex flex-col pb-4'>
+                    <div key={uiMessage.id + "_" + index} className='flex flex-col pb-1'>
                       <PartRenderer
                         part={part}
                         partIndex={index}

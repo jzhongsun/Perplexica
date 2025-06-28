@@ -270,8 +270,8 @@ class ChatService:
                                 arguments = tool_call_data.get("arguments")                               
                                 yield ToolInputAvailableUIMessageStreamPart(toolCallId=tool_call_id, toolName=tool_name, input=arguments)
                                 
-                                response_message_parts_ref[tool_call_id + "_call"] = ToolUIPartInputAvailable(type=f"tool-{tool_name}", toolCallId=tool_call_id, input=arguments)
-                                final_response_message_ui.parts.append(response_message_parts_ref[tool_call_id + "_call"])
+                                response_message_parts_ref[tool_call_id] = ToolUIPartInputAvailable(type=f"tool-{tool_name}", toolCallId=tool_call_id, input=arguments)
+                                final_response_message_ui.parts.append(response_message_parts_ref[tool_call_id])
                                 
                             elif part.root.metadata.get("inner_part_type") == "tool_result":
                                 tool_result_data = part.root.data
@@ -280,15 +280,15 @@ class ChatService:
                                 result = tool_result_data.get("result")
                                 yield ToolOutputAvailableUIMessageStreamPart(toolCallId=tool_call_id, toolName=tool_name, output=result)
                                 
-                                response_message_parts_ref[tool_call_id + "_result"] = ToolUIPartOutputAvailable(type=f"tool-{tool_name}", 
+                                response_message_parts_ref[tool_call_id] = ToolUIPartOutputAvailable(type=f"tool-{tool_name}", 
                                                                                                                  toolCallId=tool_call_id, 
-                                                                                                                 input=response_message_parts_ref[tool_call_id + "_call"].input if response_message_parts_ref.get(tool_call_id + "_call") else {},
+                                                                                                                 input=response_message_parts_ref[tool_call_id].input if response_message_parts_ref.get(tool_call_id) else {},
                                                                                                                  output=result,
                                                                                                                  metadata={
                                                                                                                      "inner_part_type": "tool_result",
                                                                                                                      **part.root.metadata,
                                                                                                                  })
-                                final_response_message_ui.parts.append(response_message_parts_ref[tool_call_id + "_result"])
+                                final_response_message_ui.parts.append(response_message_parts_ref[tool_call_id])
                         elif isinstance(part.root, a2a_types.FilePart):
                             logger.info(f"File part: {part.root}")
                         else:
