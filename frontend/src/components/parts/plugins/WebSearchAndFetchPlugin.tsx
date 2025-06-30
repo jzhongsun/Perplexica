@@ -34,8 +34,8 @@ export const WebSearchAndFetchPlugin: PartPlugin = {
   canHandle: (partType: string) => partType === 'tool-web_search-search_and_fetch',
   renderer: ({ part, partIndex, message }: PartRendererProps<ToolUIPart>): PartRenderResult => {
     return {
-      shouldRender: true,
-      content: <WebSearchAndFetchRenderer part={part} partIndex={partIndex} message={message} />
+      shouldRender: false,
+      content: null
     };
   }
 }; 

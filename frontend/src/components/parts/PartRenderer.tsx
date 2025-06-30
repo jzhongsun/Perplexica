@@ -3,12 +3,13 @@
 import React from 'react';
 import { partPlugins } from './plugins';
 import { DefaultPartRenderer } from './plugins/DefaultPartRenderer';
-import { UIMessage, UIMessagePart } from 'ai';
+import { UIDataTypes, UIMessage, UIMessagePart, UITools } from 'ai';
 
 export interface PartRendererProps<TUIMessagePart> {
   part: TUIMessagePart;
   partIndex: number;
   message: UIMessage;
+  className?: string;
 }
 
 export interface PartRenderResult {
@@ -18,6 +19,7 @@ export interface PartRenderResult {
 }
 
 export const PartRenderer: React.FC<PartRendererProps<UIMessagePart<any, any>>> = ({
+  className,
   part,
   partIndex,
   message
@@ -54,7 +56,11 @@ export const PartRenderer: React.FC<PartRendererProps<UIMessagePart<any, any>>> 
       return null;
     }
 
-    return <>{renderResult.content}</>;
+    if (!renderResult.content || (renderResult.content as string).length === 0) {
+      return null;
+    }
+
+    return <div className={className}>{renderResult.content}</div>;
   } else {
     // 使用默认渲染器
     const renderResult = DefaultPartRenderer.renderer({

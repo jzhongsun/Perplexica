@@ -92,4 +92,5 @@ export interface SuggestionsRequest {
 
 export interface ChatMessageMeta {
   createdAt?: string;
+  completedAt?: string;
 }

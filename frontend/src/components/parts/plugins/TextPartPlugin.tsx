@@ -42,7 +42,7 @@ export const TextPartPlugin: PartPlugin = {
     };
 
     return {
-      shouldRender: true,
+      shouldRender: content && content.length > 0,
       content: (
         <MemoizedMarkdown
           content={content}

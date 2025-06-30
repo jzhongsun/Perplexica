@@ -1,10 +1,15 @@
 import { memo } from 'react';
 import Markdown, { MarkdownToJSX } from 'markdown-to-jsx';
 
-interface MemoizedMarkdownProps extends React.HTMLAttributes<HTMLDivElement> {
+interface MemoizedMarkdownProps {
   content: string;
   options?: MarkdownToJSX.Options;
   className?: string;
+  id?: string;
+  style?: React.CSSProperties;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 export const MemoizedMarkdown = memo(

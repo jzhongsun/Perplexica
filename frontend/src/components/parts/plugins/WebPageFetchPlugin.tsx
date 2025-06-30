@@ -67,7 +67,7 @@ const WebPageFetchRenderer: React.FC<PartRendererProps<ToolUIPart>> = ({
         )} */}        
         {output.text_content && (
           <div>
-            <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-3 rounded max-h-40 overflow-y-auto">
+            <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-3 rounded max-h-40 overflow-y-auto">
               {output.text_content}
               {/* {output.text_content.length > 500 && '...'} */}
             </div>

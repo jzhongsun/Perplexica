@@ -160,15 +160,14 @@ const MessageBox = ({
                 {uiMessage.parts.map((part, index) => {
                   // 检查是否需要跳过渲染（由于之前的插件处理了多个部分）
                   const skipIndices = new Set<number>();
-
                   return !skipIndices.has(index) && (
-                    <div key={uiMessage.id + "_" + index} className='flex flex-col pb-1'>
-                      <PartRenderer
-                        part={part}
-                        partIndex={index}
-                        message={uiMessage}
-                      />
-                    </div>
+                    <PartRenderer
+                      key={uiMessage.id + "_" + index}
+                      className='flex flex-col pb-1'
+                      part={part}
+                      partIndex={index}
+                      message={uiMessage}
+                    />
                   );
                 })}
                 {loading && isLast ? null : (
