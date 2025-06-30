@@ -18,7 +18,7 @@ class SearXngSearchRequest(BaseModel):
 class SearXngSearchResult(BaseModel):
     url: str
     title: str
-    content: str
+    snippet: str
     thumbnail: str | None = ""
     category: str | None = ""
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -72,7 +72,7 @@ async def _seaxng_web_search(query: str, language: str = "en") -> SearXngSearchR
             search_result = SearXngSearchResult(
                 url=r["url"],
                 title=r["title"],
-                content=r["content"],
+                snippet=r["content"],
                 thumbnail=r["thumbnail"],
                 category=r["category"],
             )
