@@ -1,31 +1,43 @@
 """Chat router module."""
 
 import datetime
-from typing import Optional
-from app.core.ui_message_stream import ErrorUIMessageStreamPart, FinishUIMessageStreamPart, StartUIMessageStreamPart, TextDeltaUIMessageStreamPart, TextEndUIMessageStreamPart, TextStartUIMessageStreamPart
+import asyncio
+from typing import Dict, Any
+from app.core.ui_message_stream import ErrorUIMessageStreamPart
 from app.db.schemas import User
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-import httpx
-from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import uuid
 from loguru import logger
-import traceback
+from app.core.stream_manager import get_stream_manager
 
 from .service import ChatService
 from .schemas import ChatStreamRequest, ChatRequest
-from ...core.utils.messages import (
-    a2a_message_to_ui_message_stream_parts,
-)
-from a2a.client import A2AClient
-from a2a.types import (
-    SendStreamingMessageSuccessResponse,
-)
-import a2a.types as a2a_types
 from app.depends import get_chat_service, get_current_user
 
 router = APIRouter(prefix="/chat-stream", tags=["chat"])
+
+async def chat_producer(stream_key: str, chat_service: ChatService, chat_id: str, messages, options: Dict[str, Any]):
+    """Producer function that generates chat stream data."""
+    stream_manager = get_stream_manager()
+    
+    try:
+        # Start the actual chat stream
+        stream = chat_service.chat_stream(chat_id, messages, options)
+        async for stream_part in stream:
+            # Write each stream part to Redis Stream
+            await stream_manager.publish_to_stream(
+                stream_key,
+                "stream_part",
+                {
+                    "data": stream_part.model_dump_json(exclude_none=True)
+                }
+            )
+    except Exception as e:
+        logger.error(f"Error in chat producer: {str(e)}")
+        # Error will be handled by the stream manager
+        raise
 
 @router.post("", response_class=EventSourceResponse)
 async def handle_chat_stream(
@@ -33,7 +45,7 @@ async def handle_chat_stream(
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    """Create a new chat with streaming response."""
+    """Create a new chat with streaming response using Redis Stream."""
     
     chat_id = request.id
     if chat_id is None or len(chat_id) == 0:
@@ -58,82 +70,47 @@ async def handle_chat_stream(
         if "createdAt" not in message.metadata:
             message.metadata["createdAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+    stream_manager = get_stream_manager()
+    
     async def event_generator():
-        stream = chat_service.chat_stream(chat_id, request.messages, request.options)
-        async for stream_part in stream:
+        """Generate SSE events from Redis Stream."""
+        # Create stream and get consumer
+        stream_key = await stream_manager.create_stream(chat_id)
+        consumer_id = await stream_manager.add_consumer(stream_key)
+        
+        try:
+            # Start producer if not already running
+            producer_started = await stream_manager.start_producer(
+                stream_key,
+                chat_producer,
+                chat_service,
+                chat_id,
+                request.messages,
+                request.options.__dict__ if request.options else {}
+            )
+            
+            if producer_started:
+                logger.info(f"Started producer for stream {stream_key}")
+            else:
+                logger.info(f"Producer already running for stream {stream_key}")
+            
+            # Consume from stream
+            async for event in stream_manager.consume_stream(stream_key, consumer_id):
+                yield event
+                
+        except asyncio.CancelledError:
+            logger.info(f"Consumer {consumer_id} cancelled")
+            raise
+        except Exception as e:
+            logger.error(f"Error in event generator: {str(e)}")
             yield {
                 "id": str(uuid.uuid4()),
                 "event": "message",
-                "data": stream_part.model_dump_json(exclude_none=True),
+                "data": ErrorUIMessageStreamPart(errorText=str(e)).model_dump_json(exclude_none=True),
             }
-        # try:           
-        #     async for response_item in stream:
-        #         if isinstance(response_item.root, SendStreamingMessageSuccessResponse):
-        #             logger.info(f"Response item: {type(response_item.root.result)} - {response_item.root.result}")
-        #             if isinstance(response_item.root.result, a2a_types.Message):
-        #                 pass
-        #             elif isinstance(response_item.root.result, a2a_types.Task):
-        #                 pass
-        #             elif isinstance(
-        #                 response_item.root.result, a2a_types.TaskStatusUpdateEvent
-        #             ):
-        #                 response_message = response_item.root.result.status.message
-        #                 if response_message is None:
-        #                     continue
-                        
-        #                 for part in response_message.parts:
-        #                     if isinstance(part.root, a2a_types.TextPart):
-        #                         if active_message_props.text_part_id is None:
-        #                             active_message_props.text_part_id = response_message.messageId
-        #                             yield {
-        #                                 "id": str(uuid.uuid4()),
-        #                                 "event": "message",
-        #                                 "data": TextStartUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
-        #                             }
-        #                         if part.root.text is not None:
-        #                             yield {
-        #                                 "id": str(uuid.uuid4()),
-        #                                 "event": "message",
-        #                                 "data": TextDeltaUIMessageStreamPart(id=active_message_props.text_part_id, delta=part.root.text).model_dump_json(exclude_none=True),
-        #                             }
-        #                     elif isinstance(part.root, a2a_types.DataPart):
-        #                         logger.info(f"Data part: {part.root}")
-        #                     elif isinstance(part.root, a2a_types.FilePart):
-        #                         logger.info(f"File part: {part.root}")
-        #                     else:
-        #                         logger.info(f"Unknown part: {part.root}")
-                                
-        #             elif isinstance(
-        #                 response_item.root.result, a2a_types.TaskArtifactUpdateEvent
-        #             ):
-        #                 pass
-        #             else:
-        #                 raise ValueError(
-        #                     f"Unsupported response item type: {type(response_item.root.result)}"
-        #                 )
-
-        #     if active_message_props.text_part_id is not None:
-        #         yield {
-        #             "id": str(uuid.uuid4()),
-        #             "event": "message",
-        #             "data": TextEndUIMessageStreamPart(id=active_message_props.text_part_id).model_dump_json(exclude_none=True),
-        #         }
-        #         active_message_props.text_part_id = None
-                
-
-        #     yield {
-        #         "id": str(uuid.uuid4()),
-        #         "event": "message",
-        #         "data": FinishUIMessageStreamPart(messageId=message_id).model_dump_json(exclude_none=True),
-        #     }
-        # except Exception as e:
-        #     error_msg = f"Error in chat stream: {str(e)}\nTraceback:\n{traceback.format_exc()}"
-        #     logger.error(error_msg)
-        #     yield {
-        #         "id": str(uuid.uuid4()),
-        #         "event": "message",
-        #         "data": ErrorUIMessageStreamPart(errorText=str(e)).model_dump_json(exclude_none=True),
-        #     }
+        finally:
+            # Clean up consumer
+            await stream_manager.remove_consumer(stream_key, consumer_id)
 
     return EventSourceResponse(
         event_generator(),

@@ -26,6 +26,7 @@ from semantic_kernel.contents import (
     StreamingChatMessageContent,
     FunctionCallContent,
     FunctionResultContent,
+    FileReferenceContent,
 )
 from semantic_kernel.agents import (
     Agent,
@@ -61,6 +62,7 @@ WEB_SEARCH_AND_FETCH_FUNCTION_NAME = "search_and_fetch"
 WEB_SEARCH_FUNCTION_NAME = "web_search"
 WEB_PAGE_FETCH_FUNCTION_NAME = "web_page_fetch"
 
+DATA_SOURCES_FUNCTION_NAME = "data_sources"
 
 class MetaSearchAgentConfig(KernelBaseSettings):
     search_web: bool = Field(default=True)
@@ -259,7 +261,8 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
             if isinstance(item, FunctionCallContent)
         ]
         logger.info(f"function_calls = \n{function_calls}")
-
+        
+        final_data_source_references: list[FileReferenceContent] = []
         for function_call in function_calls:
             call_id = function_call.id
             message = StreamingChatMessageContent(
@@ -351,6 +354,20 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                         )
                         if result.result.get("success"):
                             function_call_results.append(result.result)
+                            final_data_source_references.append(FileReferenceContent(
+                                file_id=result.result.get("url"),
+                                tools=[],
+                                data_source={
+                                    "url": result.result.get("url"),
+                                    "title": result.result.get("title"),
+                                    "snippet": result.result.get("snippet"),
+                                    "text_content": result.result.get("text_content"),
+                                    "metadata": result.result.get("metadata", {}),
+                                },
+                                metadata={
+                                    "internal_type": "reference_data_source",
+                                },
+                            ))
 
                     elif result.request_type == "web_search_begin":
                         yield AgentResponseItem(
@@ -430,6 +447,27 @@ class MetaSearchAgent(DeclarativeSpecMixin, Agent):
                     message=function_call_result_message,
                     thread=agent_thread,
                 )
+        if len(final_data_source_references) > 0:
+            yield AgentResponseItem(
+                message=StreamingChatMessageContent(
+                    role=AuthorRole.ASSISTANT,
+                    items=[
+                        FunctionResultContent(
+                            id=str(uuid.uuid4()),
+                            name=DATA_SOURCES_FUNCTION_NAME,
+                            call_id=str(uuid.uuid4()),
+                            function_name=DATA_SOURCES_FUNCTION_NAME,
+                            plugin_name=WEB_SEARCH_PLUGIN_NAME,
+                            result=final_data_source_references,
+                        ),
+                    ],
+                    choice_index=0,
+                    metadata={
+                        "internal_type": "reference_data_source",
+                    },
+                ),
+                thread=agent_thread,
+            )
         chat_history.add_message(function_call_result_message)
         logger.info(
             f"chat_history = \n{chat_history.model_dump_json(indent=2, exclude_none=True)}"

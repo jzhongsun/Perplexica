@@ -9,6 +9,8 @@ from app.api.v1.router import router as api_v1_router
 from app.db.init_db import init_app_db
 from app.db.database import close_db_connections
 from app.features.chat.router_stream import router as chat_stream_router
+from app.features.chat.admin_router import router as chat_admin_router
+from app.core.background_tasks import start_background_tasks
 
 dotenv.load_dotenv()
 
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     await init_app_db()
+    await start_background_tasks()
     yield
     logger.info("Shutting down...")
     await close_db_connections()
@@ -45,6 +48,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(api_v1_router, prefix="/api/v1")
     app.include_router(chat_stream_router, prefix="/api/v1")
+    app.include_router(chat_admin_router, prefix="/api/v1")
     
     return app
 
