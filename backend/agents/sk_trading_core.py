@@ -156,7 +156,7 @@ class FinancialTradingConditionalLogic:
     ) -> bool:
         """Determine if risk analysis should continue."""
         if (
-            risk_debate_state.count <= 3 * self.max_risk_discuss_rounds
+            risk_debate_state.count < 3 * self.max_risk_discuss_rounds
         ):  # 3 rounds of back-and-forth between 3 agents
             return True
         if risk_debate_state.latest_speaker.startswith("Risky"):

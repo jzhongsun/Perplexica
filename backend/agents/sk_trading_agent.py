@@ -7,7 +7,6 @@ import json
 from agents.sk_trading_prompts import *
 from agents.sk_trading_core import *
 from agents.utils import (
-    get_buffer_string,
     get_today_str,
 )
 from semantic_kernel.agents import (
@@ -18,12 +17,10 @@ from semantic_kernel.agents import (
     ChatHistoryAgentThread,
     AgentThread,
 )
-from enum import Enum
 from pydantic import BaseModel, Field
 from typing import (
     Any,
     override,
-    Annotated,
     Any,
 )
 
@@ -38,7 +35,6 @@ from semantic_kernel.contents import (
     AuthorRole,
     FunctionCallContent,
     FunctionResultContent,
-    TextContent,
     StreamingChatMessageContent,
     ChatHistory,
 )
@@ -49,7 +45,6 @@ from semantic_kernel.utils.telemetry.agent_diagnostics.decorators import (
 )
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.kernel import Kernel, KernelPlugin, KernelArguments
-from semantic_kernel.functions import kernel_function, KernelFunction
 from openai import AsyncOpenAI
 
 import logging
@@ -67,13 +62,13 @@ class FinancialTradingAgentConfig(BaseModel):
     deep_think_model_config: dict[str, Any] = Field(default={}, metadata={})
     quick_think_model: str = Field(default="openai:gpt-4.1", metadata={})
     quick_think_model_config: dict[str, Any] = Field(default={}, metadata={})
-    max_debate_rounds: int = Field(default=1, metadata={})
-    max_risk_discuss_rounds: int = Field(default=1, metadata={})
+    max_debate_rounds: int = Field(default=3, metadata={})
+    max_risk_discuss_rounds: int = Field(default=3, metadata={})
     max_recur_limit: int = Field(default=100, metadata={})
     selected_analysts: list[str] = Field(
         default=["market", "social", "news", "fundamentals"], metadata={}
     )
-    max_concurrent_analysts_tool_calls: int = Field(default=1, metadata={})
+    max_concurrent_analysts_tool_calls: int = Field(default=5, metadata={})
 
     class Config:
         arbitrary_types_allowed = True
@@ -421,17 +416,23 @@ async def invoke_researchers_stream(
             current_response=debate_state.current_response,
             past_memory_str=past_bull_memory_str,
         )
-        response = await bull_model.get_chat_message_content(
+        all_messages: list[StreamingChatMessageContent] = []
+        async for chunk in bull_model.get_streaming_chat_message_content(
             ChatHistory(
                 messages=[ChatMessageContent(role=AuthorRole.USER, content=bull_prompt)]
             ),
             bull_model_settings,
             kernel=kernel,
-        )
+        ):
+            if chunk is None:
+                continue
+            yield AgentResponseItem(message=chunk, thread=thread)
+            all_messages.append(chunk)
+        response = reduce(lambda x, y: x + y, all_messages)
         if response is None:
             continue
 
-        yield AgentResponseItem(message=response, thread=thread)
+        # yield AgentResponseItem(message=response, thread=thread)
         argument = f"Bull Analyst: {response.content}"
         debate_state.bull_history += argument
         debate_state.history += argument
@@ -447,17 +448,23 @@ async def invoke_researchers_stream(
             current_response=debate_state.current_response,
             past_memory_str=past_bear_memory_str,
         )
-        response = await bear_model.get_chat_message_content(
+        all_messages: list[StreamingChatMessageContent] = []
+        async for chunk in bear_model.get_streaming_chat_message_content(
             ChatHistory(
                 messages=[ChatMessageContent(role=AuthorRole.USER, content=bear_prompt)]
             ),
             bear_model_settings,
             kernel=kernel,
-        )
+        ):
+            if chunk is None:
+                continue
+            yield AgentResponseItem(message=chunk, thread=thread)
+            all_messages.append(chunk)
+        response = reduce(lambda x, y: x + y, all_messages)
         if response is None:
             continue
 
-        yield AgentResponseItem(message=response, thread=thread)
+        # yield AgentResponseItem(message=response, thread=thread)
         argument = f"Bear Analyst: {response.content}"
         debate_state.bear_history += argument
         debate_state.history += argument
@@ -477,7 +484,8 @@ async def invoke_researchers_stream(
         history=debate_state.history,
         past_memory_str=past_memory_str,
     )
-    response = await invest_judge_model.get_chat_message_content(
+    all_messages: list[StreamingChatMessageContent] = []
+    async for chunk in invest_judge_model.get_streaming_chat_message_content(
         ChatHistory(
             messages=[
                 ChatMessageContent(
@@ -487,11 +495,16 @@ async def invoke_researchers_stream(
         ),
         invest_judge_model_settings,
         kernel=kernel,
-    )
+    ):
+        if chunk is None:
+            continue
+        yield AgentResponseItem(message=chunk, thread=thread)
+        all_messages.append(chunk)
+    response = reduce(lambda x, y: x + y, all_messages)
     if response is None:
         raise Exception("Invest Judge Model returned None")
 
-    yield AgentResponseItem(message=response, thread=thread)
+    # yield AgentResponseItem(message=response, thread=thread)
     debate_state.judge_decision = response.content
     debate_state.current_response = response.content
 
@@ -543,7 +556,8 @@ async def invoke_trader_stream(
         **configurable.deep_think_model_config,
     )
 
-    response = await trader_model.get_chat_message_content(
+    all_messages: list[StreamingChatMessageContent] = []
+    async for chunk in trader_model.get_streaming_chat_message_content(
         ChatHistory(
             messages=[
                 ChatMessageContent(
@@ -554,11 +568,16 @@ async def invoke_trader_stream(
         ),
         trader_model_settings,
         kernel=kernel,
-    )
+    ):
+        if chunk is None:
+            continue
+        yield AgentResponseItem(message=chunk, thread=thread)
+        all_messages.append(chunk)
+    response = reduce(lambda x, y: x + y, all_messages)
     if response is None:
         raise Exception("Trader Model returned None")
 
-    yield AgentResponseItem(message=response, thread=thread)
+    # yield AgentResponseItem(message=response, thread=thread)
     state.messages = state.messages + [response]
     state.trader_investment_plan = response.content
     state.next_step = FinancialTradingAgentStep.RISK_ANALYSIS
@@ -634,7 +653,8 @@ async def invoke_risk_analysis_stream(
             current_safe_response=risk_debate_state.current_safe_response,
             current_neutral_response=risk_debate_state.current_neutral_response,
         )
-        response = await risky_model.get_chat_message_content(
+        all_messages: list[StreamingChatMessageContent] = []
+        async for chunk in risky_model.get_streaming_chat_message_content(
             ChatHistory(
                 messages=[
                     ChatMessageContent(role=AuthorRole.USER, content=risky_prompt)
@@ -642,11 +662,16 @@ async def invoke_risk_analysis_stream(
             ),
             risky_model_settings,
             kernel=kernel,
-        )
+        ):
+            if chunk is None:
+                continue
+            yield AgentResponseItem(message=chunk, thread=thread)
+            all_messages.append(chunk)
+        response = reduce(lambda x, y: x + y, all_messages)
         if response is None:
             continue
 
-        yield AgentResponseItem(message=response, thread=thread)
+        # yield AgentResponseItem(message=response, thread=thread)
         argument = f"Risky Analyst: {response.content}"
         risk_debate_state.risky_history += argument
         risk_debate_state.history += argument
@@ -670,17 +695,23 @@ async def invoke_risk_analysis_stream(
             current_safe_response=risk_debate_state.current_safe_response,
             current_neutral_response=risk_debate_state.current_neutral_response,
         )
-        response = await safe_model.get_chat_message_content(
+        all_messages: list[StreamingChatMessageContent] = []
+        async for chunk in safe_model.get_streaming_chat_message_content(
             ChatHistory(
                 messages=[ChatMessageContent(role=AuthorRole.USER, content=safe_prompt)]
             ),
             safe_model_settings,
             kernel=kernel,
-        )
+        ):
+            if chunk is None:
+                continue
+            yield AgentResponseItem(message=chunk, thread=thread)
+            all_messages.append(chunk)
+        response = reduce(lambda x, y: x + y, all_messages)
         if response is None:
             continue
 
-        yield AgentResponseItem(message=response, thread=thread)
+        # yield AgentResponseItem(message=response, thread=thread)
         argument = f"Safe Analyst: {response.content}"
         risk_debate_state.safe_history += argument
         risk_debate_state.history += argument
@@ -704,7 +735,8 @@ async def invoke_risk_analysis_stream(
             current_safe_response=risk_debate_state.current_safe_response,
             current_neutral_response=risk_debate_state.current_neutral_response,
         )
-        response = await neutral_model.get_chat_message_content(
+        all_messages: list[StreamingChatMessageContent] = []
+        async for chunk in neutral_model.get_streaming_chat_message_content(
             ChatHistory(
                 messages=[
                     ChatMessageContent(role=AuthorRole.USER, content=neutral_prompt)
@@ -712,11 +744,16 @@ async def invoke_risk_analysis_stream(
             ),
             neutral_model_settings,
             kernel=kernel,
-        )
+        ):
+            if chunk is None:
+                continue
+            yield AgentResponseItem(message=chunk, thread=thread)
+            all_messages.append(chunk)
+        response = reduce(lambda x, y: x + y, all_messages)
         if response is None:
             continue
 
-        yield AgentResponseItem(message=response, thread=thread)
+        # yield AgentResponseItem(message=response, thread=thread)
         argument = f"Neutral Analyst: {response.content}"
         risk_debate_state.neutral_history += argument
         risk_debate_state.history += argument
@@ -743,7 +780,8 @@ async def invoke_risk_analysis_stream(
         trader_plan=trader_decision,
         past_memory_str=past_memory_str,
     )
-    response = await risk_judge_model.get_chat_message_content(
+    all_messages: list[StreamingChatMessageContent] = []
+    async for chunk in risk_judge_model.get_streaming_chat_message_content(
         ChatHistory(
             messages=[
                 ChatMessageContent(role=AuthorRole.USER, content=risk_judge_prompt)
@@ -751,11 +789,16 @@ async def invoke_risk_analysis_stream(
         ),
         risk_judge_model_settings,
         kernel=kernel,
-    )
+    ):
+        if chunk is None:
+            continue
+        yield AgentResponseItem(message=chunk, thread=thread)
+        all_messages.append(chunk)
+    response = reduce(lambda x, y: x + y, all_messages)
     if response is None:
         raise Exception("Risk Judge Model returned None")
 
-    yield AgentResponseItem(message=response, thread=thread)
+    # yield AgentResponseItem(message=response, thread=thread)
     risk_debate_state.judge_decision = response.content
 
     state.risk_debate_state = risk_debate_state
@@ -910,8 +953,8 @@ class FinancialTradingAgent(DeclarativeSpecMixin, Agent):
             self.log_state(state, seq)
 
     def log_state(self, state: FinancialTradingAgentState, seq: int):
-        os.makedirs("trading_logs", exist_ok=True)
-        with open(f"trading_logs/state_{seq}.json", "w") as f:
+        os.makedirs("./logs", exist_ok=True)
+        with open(f"./logs/trading_state_{seq}.json", "w") as f:
             json.dump(state.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
 
     @override
@@ -961,7 +1004,7 @@ async def main():
     last_message_id = None
     async for response in agent.invoke_stream(
         messages=[
-            f'```json\n{{"company_of_interest": "AAPL", "trade_date": "2025-01-01"}}\n```'
+            f'```json\n{{"company_of_interest": "MICROSOFT", "trade_date": "2025-08-01"}}\n```'
         ]
     ):
         # if last_message_id != response.message.id:
