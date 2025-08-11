@@ -44,6 +44,11 @@ from semantic_kernel.utils.telemetry.agent_diagnostics.decorators import (
     trace_agent_invocation,
 )
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
+from semantic_kernel.connectors.mcp import (
+    MCPPluginBase,
+    MCPSsePlugin,
+    MCPStreamableHttpPlugin,
+)
 from semantic_kernel.kernel import Kernel, KernelPlugin, KernelArguments
 from openai import AsyncOpenAI
 
@@ -62,8 +67,9 @@ class FinancialTradingAgentConfig(BaseModel):
     deep_think_model_config: dict[str, Any] = Field(default={}, metadata={})
     quick_think_model: str = Field(default="openai:gpt-4.1", metadata={})
     quick_think_model_config: dict[str, Any] = Field(default={}, metadata={})
-    max_debate_rounds: int = Field(default=3, metadata={})
-    max_risk_discuss_rounds: int = Field(default=3, metadata={})
+    mcp_server_url: str = Field(default="http://localhost:9000/trading/sse", metadata={})
+    max_debate_rounds: int = Field(default=1, metadata={})
+    max_risk_discuss_rounds: int = Field(default=1, metadata={})
     max_recur_limit: int = Field(default=100, metadata={})
     selected_analysts: list[str] = Field(
         default=["market", "social", "news", "fundamentals"], metadata={}
@@ -76,18 +82,29 @@ class FinancialTradingAgentConfig(BaseModel):
 
 async def safe_invoke_function(
     kernel: Kernel,
-    function_name: str,
+    function_call_content: FunctionCallContent,
     arguments: dict[str, Any],
     semaphore: asyncio.Semaphore,
 ):
     async with semaphore:
-        function = kernel.get_function(function_name)
         try:
-            return function.invoke(arguments)
+            function = kernel.get_function(
+                function_call_content.plugin_name,
+                function_call_content.function_name,
+            )
+            function_result = await function.invoke(
+                kernel,
+                arguments=KernelArguments(
+                    **arguments,
+                ),
+            )
+            return function_result.value
         except Exception as e:
-            logger.error(f"Error invoking function {function_name}: {e}")
-            return None
-
+            logger.error(f"Error invoking function {function_call_content.function_name}: {e}")
+            return {
+                "error": str(e),
+                "arguments": arguments,
+            }
 
 async def async_invoke_analyst_component(
     analyst_name: str,
@@ -152,7 +169,7 @@ async def async_invoke_analyst_component(
                 arguments = function_call_content.parse_arguments()
                 coroutines.append(
                     safe_invoke_function(
-                        kernel, function_name, arguments, function_call_semaphore
+                        kernel, function_call_content, arguments, function_call_semaphore
                     )
                 )
 
@@ -868,94 +885,118 @@ class FinancialTradingAgent(DeclarativeSpecMixin, Agent):
         ) = None,
         **kwargs,
     ) -> AsyncIterable[AgentResponseItem[StreamingChatMessageContent]]:
-        if thread is None:
-            thread = ChatHistoryAgentThread()
-
-        if isinstance(messages, (str, ChatMessageContent)):
-            messages = [messages]
-
-        normalized_messages = [
-            (
-                ChatMessageContent(role=AuthorRole.USER, content=msg)
-                if isinstance(msg, str)
-                else msg
+        trading_plugin: MCPPluginBase | None = None
+        if self.config.mcp_server_url:
+            trading_plugin = MCPSsePlugin(
+                name="trading",
+                url=self.config.mcp_server_url,
+                load_prompts=False,
+                load_tools=True,
             )
-            for msg in messages
-        ]
+        try:
+            if trading_plugin is not None:
+                await trading_plugin.connect()
+                self.kernel.add_plugin(trading_plugin, plugin_name="trading")
 
-        # Initialize memories
-        bull_memory = FinancialSituationMemory("bull_memory", self.config)
-        bear_memory = FinancialSituationMemory("bear_memory", self.config)
-        trader_memory = FinancialSituationMemory("trader_memory", self.config)
-        invest_judge_memory = FinancialSituationMemory(
-            "invest_judge_memory", self.config
-        )
-        risk_manager_memory = FinancialSituationMemory(
-            "risk_manager_memory", self.config
-        )
-        # Initialize components
-        conditional_logic = FinancialTradingConditionalLogic(
-            max_debate_rounds=self.config.max_debate_rounds,
-            max_risk_discuss_rounds=self.config.max_risk_discuss_rounds,
-        )
-        # reflector = FinancialTradingReflector()
-        # signal_processor = FinancialTradingSignalProcessor(self.kernel)
-        # self.propagator = FinancialTradingPropagator(self.kernel)
-        # reflector = FinancialTradingReflector(self.kernel)
-        # signal_processor = FinancialTradingSignalProcessor(self.kernel)
+            if thread is None:
+                thread = ChatHistoryAgentThread()
 
-        state = FinancialTradingAgentState(
-            next_step=FinancialTradingAgentStep.ANALYSTS,
-            messages=normalized_messages,
-            research_brief="",
-            supervisor_messages=[],
-            research_iterations=0,
-        )
-        step = state.next_step
-        seq = 0
-        self.log_state(state, seq)
-        while step != FinancialTradingAgentStep.END:
-            if step == FinancialTradingAgentStep.ANALYSTS:
-                async for response in invoke_analysts_stream(
-                    conditional_logic, state, self.kernel, self.config, thread
-                ):
-                    yield response
-            elif step == FinancialTradingAgentStep.RESEARCHERS:
-                async for response in invoke_researchers_stream(
-                    conditional_logic,
-                    bull_memory,
-                    bear_memory,
-                    invest_judge_memory,
-                    state,
-                    self.kernel,
-                    self.config,
-                    thread,
-                ):
-                    yield response
-            elif step == FinancialTradingAgentStep.TRADER:
-                async for response in invoke_trader_stream(
-                    trader_memory, state, self.kernel, self.config, thread
-                ):
-                    yield response
-            elif step == FinancialTradingAgentStep.RISK_ANALYSIS:
-                async for response in invoke_risk_analysis_stream(
-                    conditional_logic,
-                    risk_manager_memory,
-                    state,
-                    self.kernel,
-                    self.config,
-                    thread,
-                ):
-                    yield response
+            if isinstance(messages, (str, ChatMessageContent)):
+                messages = [messages]
 
+            normalized_messages = [
+                (
+                    ChatMessageContent(role=AuthorRole.USER, content=msg)
+                    if isinstance(msg, str)
+                    else msg
+                )
+                for msg in messages
+            ]
+
+            # Initialize memories
+            bull_memory = FinancialSituationMemory("bull_memory", self.config)
+            bear_memory = FinancialSituationMemory("bear_memory", self.config)
+            trader_memory = FinancialSituationMemory("trader_memory", self.config)
+            invest_judge_memory = FinancialSituationMemory(
+                "invest_judge_memory", self.config
+            )
+            risk_manager_memory = FinancialSituationMemory(
+                "risk_manager_memory", self.config
+            )
+            # Initialize components
+            conditional_logic = FinancialTradingConditionalLogic(
+                max_debate_rounds=self.config.max_debate_rounds,
+                max_risk_discuss_rounds=self.config.max_risk_discuss_rounds,
+            )
+            # reflector = FinancialTradingReflector()
+            # signal_processor = FinancialTradingSignalProcessor(self.kernel)
+            # self.propagator = FinancialTradingPropagator(self.kernel)
+            # reflector = FinancialTradingReflector(self.kernel)
+            # signal_processor = FinancialTradingSignalProcessor(self.kernel)
+
+            state = FinancialTradingAgentState(
+                next_step=FinancialTradingAgentStep.ANALYSTS,
+                messages=normalized_messages,
+                research_brief="",
+                supervisor_messages=[],
+                research_iterations=0,
+            )
             step = state.next_step
-            seq += 1
+            seq = 0
             self.log_state(state, seq)
+            while step != FinancialTradingAgentStep.END:
+                if step == FinancialTradingAgentStep.ANALYSTS:
+                    async for response in invoke_analysts_stream(
+                        conditional_logic, state, self.kernel, self.config, thread
+                    ):
+                        yield response
+                elif step == FinancialTradingAgentStep.RESEARCHERS:
+                    async for response in invoke_researchers_stream(
+                        conditional_logic,
+                        bull_memory,
+                        bear_memory,
+                        invest_judge_memory,
+                        state,
+                        self.kernel,
+                        self.config,
+                        thread,
+                    ):
+                        yield response
+                elif step == FinancialTradingAgentStep.TRADER:
+                    async for response in invoke_trader_stream(
+                        trader_memory, state, self.kernel, self.config, thread
+                    ):
+                        yield response
+                elif step == FinancialTradingAgentStep.RISK_ANALYSIS:
+                    async for response in invoke_risk_analysis_stream(
+                        conditional_logic,
+                        risk_manager_memory,
+                        state,
+                        self.kernel,
+                        self.config,
+                        thread,
+                    ):
+                        yield response
+
+                step = state.next_step
+                seq += 1
+                self.log_state(state, seq)                
+                
+        except Exception as e:
+            logger.error(f"Error in trading agent: {e}")
+            raise e
+        finally:
+            if trading_plugin is not None:
+                await trading_plugin.close()
+                self.kernel.plugins.pop("trading")
 
     def log_state(self, state: FinancialTradingAgentState, seq: int):
-        os.makedirs("./logs", exist_ok=True)
-        with open(f"./logs/trading_state_{seq}.json", "w") as f:
-            json.dump(state.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+        try:
+            os.makedirs("./logs", exist_ok=True)
+            with open(f"./logs/trading_state_{seq}.json", "w") as f:
+                json.dump(state.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Error logging state: {e}")
 
     @override
     @classmethod
