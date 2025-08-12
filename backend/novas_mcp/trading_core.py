@@ -1,26 +1,45 @@
 from enum import Enum
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, TypeVar, TypedDict, Union
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+class TradingReportResultPack(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
+    dataframe: Optional[pd.DataFrame] = Field(default=None, description="The dataframe of the report")
+    markdown_table: Optional[str] = Field(default=None, description="The markdown of the report")
+    json_dict: Optional[dict] = Field(default=None, description="The json of the report")
+    
+    @field_validator('dataframe')
+    @classmethod
+    def validate_dataframe(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, pd.DataFrame):
+            raise ValueError("dataframe must be a pandas DataFrame")
+        return v
+
+class TradingReportResult(BaseModel):
+    success: bool = Field(description="Whether the request is successful")
+    reports: dict[str, TradingReportResultPack] = Field(description="A list of indicator names and their reports, each report is a markdown table")
+
 class ReportDateType(str, Enum):
     BY_PERIOD = "by_period"
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
-
-
+    
 class MarketType(str, Enum):
     A_SHARE = "a_share"  # 上海证券交易所
     B_SHARE = "b_share"  # 深圳证券交易所
     H_SHARE = "h_share"  # 深圳证券交易所
     US_STOCKS = "us_stocks"  # 美国股票
-
 
 class RetrieveCompanyNewsRequest(BaseModel):
     company_name: str

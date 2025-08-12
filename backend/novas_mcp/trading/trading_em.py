@@ -1,7 +1,7 @@
 import asyncio
 import httpx
 from novas_mcp.utils import format_pd_dataframe_to_markdown
-from novas_mcp.trading_core import MarketType, ReportDateType
+from novas_mcp.trading_core import MarketType, ReportDateType, TradingReportResultPack
 import pandas as pd
 from datetime import datetime
 import json
@@ -20,7 +20,7 @@ async def em_retrieve_company_financial_analysis_indicators(
     symbol: str,
     report_period_type: ReportDateType,
     look_back_years: int,
-) -> dict[str, str]:
+) -> dict[str, TradingReportResultPack]:
     """
     获取股票财务分析指标，按中文格式输出, https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=sh600519#zyzb-0
     Args:
@@ -37,8 +37,7 @@ async def em_retrieve_company_financial_analysis_indicators(
     elif market_type == MarketType.B_SHARE:
         symbol = "SZ" + security_code
 
-    def get_financial_indicator_mapping(report_period_type: ReportDateType):
-        """财务分析指标中文映射字典 - 基于akshare实际列名"""
+    def get_financial_indicator_mapping(report_period_type: ReportDateType) -> dict[str, str]:
         return {
             # 每股指标
             "EPSJB": (
@@ -100,7 +99,7 @@ async def em_retrieve_company_financial_analysis_indicators(
             "YSZKZZL": "应收账款周转率(次)",
         }
 
-    def get_financial_indicator_categories():
+    def get_financial_indicator_categories() -> dict[str, list[str]]:
         """财务指标分类 - 基于akshare实际列名"""
         return {
             "每股指标": [
@@ -153,69 +152,23 @@ async def em_retrieve_company_financial_analysis_indicators(
             ],
         }
 
-    def create_category_dataframes(df, report_period_type: ReportDateType):
+    def create_category_dataframes(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         """将财务数据按分类分拆成多个DataFrame"""
-        indicator_mapping = get_financial_indicator_mapping(report_period_type)
         categories = get_financial_indicator_categories()
-
-        def format_large_numbers(value):
-            """格式化大数字为中文格式（如：514.4亿）"""
-            if pd.isna(value) or value == 0:
-                return value
-
-            # 对于绝对值大于1亿的数字，转换为"亿"为单位
-            if abs(value) >= 100000000:
-                return f"{value / 100000000:.2f}亿"
-            # 对于绝对值大于1万的数字，转换为"万"为单位
-            elif abs(value) >= 10000:
-                return f"{value / 10000:.2f}万"
-            else:
-                return f"{value:.2f}"
-
         category_dataframes = {}
-
         for category_name, indicators in categories.items():
             # 获取该分类下存在的指标
             available_indicators = [
-                indicator for indicator in indicators if indicator in df.index
+                indicator for indicator in indicators if indicator in df.columns
             ]
-
+            print(f'{category_name} - \n{indicators} - \n{available_indicators}')
             if available_indicators:
                 # 创建该分类的DataFrame
-                category_df = df.loc[available_indicators].copy()
-
-                # 将指标名称映射为中文
-                chinese_names = []
-                for indicator in available_indicators:
-                    chinese_name = indicator_mapping.get(indicator, indicator)
-                    chinese_names.append(chinese_name)
-
-                # 设置中文指标名称为索引
-                category_df.index = chinese_names
-                category_df.index.name = category_name
-
-                # 格式化数值：对于收入、利润等大数字使用中文格式
-                for col in category_df.columns:
-                    for indicator in available_indicators:
-                        if indicator in [
-                            "TOTALOPERATEREVE",
-                            "GROSS_PROFIT",
-                            "PARENTNETPROFIT",
-                            "DEDU_PARENT_PROFIT",
-                        ]:
-                            # 这些是大数字指标，需要格式化
-                            if indicator in df.index:
-                                row_idx = chinese_names[
-                                    available_indicators.index(indicator)
-                                ]
-                                if row_idx in category_df.index:
-                                    category_df.loc[row_idx, col] = (
-                                        format_large_numbers(
-                                            category_df.loc[row_idx, col]
-                                        )
-                                    )
-
+                final_columns = ["REPORT_DATE_NAME"] + available_indicators
+                category_df = df[final_columns].copy()
+                category_df.set_index("REPORT_DATE_NAME", inplace=True)
                 category_dataframes[category_name] = category_df
+            print(f'{category_name} - \n{indicators} - \n{available_indicators}')
 
         return category_dataframes
 
@@ -235,7 +188,7 @@ async def em_retrieve_company_financial_analysis_indicators(
         if data["data"]:
             ak_df = pd.DataFrame(data["data"])
         else:
-            return {"success": False, "error": "No data found"}
+            return {}
 
     ak_df.to_json(
         f"./logs/em_retrieve_company_financial_analysis_indicators_{market_type.value}_{symbol}_{report_period_type.value}_raw.json",
@@ -245,73 +198,46 @@ async def em_retrieve_company_financial_analysis_indicators(
 
     # 筛选指定年份内的数据
     if "REPORT_DATE" in ak_df.columns:
-        ak_df["REPORT_DATE"] = pd.to_datetime(ak_df["REPORT_DATE"])
+        ak_df["REPORT_DATE_T"] = pd.to_datetime(ak_df["REPORT_DATE"])
         cutoff_date = datetime(datetime.now().year - look_back_years, 1, 1)
-        ak_df = ak_df[ak_df["REPORT_DATE"] >= cutoff_date].copy()
-        ak_df = ak_df.sort_values("REPORT_DATE", ascending=False)
+        ak_df = ak_df[ak_df["REPORT_DATE_T"] >= cutoff_date].copy()
+        ak_df = ak_df.sort_values("REPORT_DATE_T", ascending=False)
+    if "REPORT_DATE_NAME" not in ak_df.columns:
+        ak_df["REPORT_DATE_NAME"] = ak_df["REPORT_DATE_T"].dt.strftime("%Y-%m-%d")
+    print(ak_df)
+    # 按分类分拆数据
+    category_dataframes = create_category_dataframes(ak_df)
 
-    # 处理报告期名称，转换为简化格式 (如 "25-03-31")
-    if "REPORT_DATE" in ak_df.columns:
-
-        def format_date_name(date_obj):
-            if pd.isna(date_obj):
-                return str(date_obj)
-            # 将datetime对象转换为 "YY-MM-DD" 格式
-            year = str(date_obj.year)[-2:]  # 取年份后两位
-            month = f"{date_obj.month:02d}"  # 月份补零
-            day = f"{date_obj.day:02d}"  # 日期补零
-            return f"{year}-{month}-{day}"
-
-        # 创建报告期名称列
-        ak_df["REPORT_DATE_NAME"] = ak_df["REPORT_DATE"].apply(format_date_name)
-
-    # 设置索引并转置
-    if "REPORT_DATE_NAME" in ak_df.columns and len(ak_df) > 0:
-        # 使用报告期名称作为列标识
-        ak_df_transposed = ak_df.set_index("REPORT_DATE_NAME").T
-
-        # 删除不需要的行
-        rows_to_drop = [
-            "REPORT_DATE",
-            "SECUCODE",
-            "SECURITY_CODE",
-            "SECURITY_NAME_ABBR",
-        ]
-        for row in rows_to_drop:
-            if row in ak_df_transposed.index:
-                ak_df_transposed = ak_df_transposed.drop(row)
-
-        # 按分类分拆数据
-        category_dataframes = create_category_dataframes(
-            ak_df_transposed, report_period_type
+    # 格式化每个分类的表格
+    indicator_mapping = get_financial_indicator_mapping(report_period_type)        
+    final_reports : dict[str, TradingReportResultPack] = {}
+    for category_name, category_df in category_dataframes.items():
+        table_str = format_pd_dataframe_to_markdown(category_df, include_index=True, transpose=True, column_mapping=indicator_mapping)
+        final_reports[category_name] = TradingReportResultPack(
+            dataframe=category_df,
+            markdown_table=table_str,
+            json_dict=json.loads(category_df.to_json(force_ascii=False, indent=2)),
         )
 
-        # 格式化每个分类的表格
-        reports = {}
-        for category_name, category_df in category_dataframes.items():
-            table_str = format_pd_dataframe_to_markdown(category_df, include_index=True)
-            reports[category_name] = table_str
+    with open(
+        f"./logs/em_retrieve_company_financial_analysis_indicators_{market_type.value}_{symbol}_{report_period_type.value}_reports.json",
+        "w",
+    ) as f:
+        r = {}
+        for k, v in final_reports.items():
+            r[k] = v.json_dict
+        json.dump(r, f, ensure_ascii=False, indent=2)
 
-        with open(
-            f"./logs/em_retrieve_company_financial_analysis_indicators_{market_type.value}_{symbol}_{report_period_type.value}_reports.json",
-            "w",
-        ) as f:
-            json.dump(reports, f, ensure_ascii=False, indent=2)
+    with open(
+        f"./logs/em_retrieve_company_financial_analysis_indicators_{market_type.value}_{symbol}_{report_period_type.value}_reports.md",
+        "w",
+    ) as f:
+        for category_name, report_item in final_reports.items():
+            f.write(f"\n\n## {category_name}\n")
+            f.write(report_item.markdown_table)
+            f.write("\n")
 
-        with open(
-            f"./logs/em_retrieve_company_financial_analysis_indicators_{market_type.value}_{symbol}_{report_period_type.value}_reports.md",
-            "w",
-        ) as f:
-            for category_name, table_str in reports.items():
-                f.write(f"\n\n## {category_name}\n")
-                f.write(table_str)
-                f.write("\n")
-
-        return {"success": True, "reports": reports}
-    else:
-        # 如果没有合适的数据，返回原始格式
-        return {}
-
+    return final_reports
 
 async def em_retrieve_company_financial_analysis_cash_flow_statement(
     market_type: MarketType,
@@ -320,21 +246,19 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
     include_yoy: bool,
     include_qoq: bool,
     look_back_years: int,
-) -> dict[str, str]:
+) -> dict[str, TradingReportResultPack]:
     """
     获取股票财务分析现金流量表，按中文格式输出, https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=sh600519#xjll-0
     Args:
         market_type: 市场类型
         symbol: 股票代码
-        report_period_type: 报告期类型
-        report_type: 报告类型: 按报告期 | 按年度 | 按单季度 | 报告期同比 | 年度同比 | 单季度环比
+        report_date_type: 报告期类型
+        include_yoy: 是否包含同比
+        include_qoq: 是否包含环比
         look_back_years: 回溯年数
     """
-    """
-    - 按报告期 | 按年度 | 按单季度 | 报告期同比 | 年度同比 | 单季度环比
-    """
 
-    def format_cash_flow_statement_dataframe(
+    def create_category_cash_flow_statement_dataframes(
         df: pd.DataFrame, include_yoy: bool, include_qoq: bool
     ) -> dict[str, pd.DataFrame]:
         """格式化现金流量表DataFrame，在转置前按分类分拆并返回分类后的字典"""
@@ -433,67 +357,6 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
             ],
         }
 
-        # 现金流量表主要项目列名映射字典
-        column_mapping = {
-            # 基本信息
-            "REPORT_DATE": "报告期",
-            "REPORT_DATE_NAME": "报告期名称",
-            # 经营活动现金流量 - 现金流入
-            "SALES_SERVICES": "销售商品提供劳务收到的现金",
-            "DEPOSIT_INTERBANK_ADD": "客户存款和同业存放款项净增加额",
-            "RECEIVE_INTEREST_COMMISSION": "收取利息手续费及佣金的现金",
-            "RECEIVE_TAX_REFUND": "收到的税收返还",
-            "RECEIVE_OTHER_OPERATE": "收到其他与经营活动有关的现金",
-            "TOTAL_OPERATE_INFLOW": "经营活动现金流入小计",
-            # 经营活动现金流量 - 现金流出
-            "BUY_SERVICES": "购买商品接受劳务支付的现金",
-            "LOAN_ADVANCE_ADD": "客户贷款及垫款净增加额",
-            "PBC_INTERBANK_ADD": "存放中央银行和同业款项净增加额",
-            "PAY_INTEREST_COMMISSION": "支付利息手续费及佣金的现金",
-            "PAY_STAFF_CASH": "支付给职工以及为职工支付的现金",
-            "PAY_ALL_TAX": "支付的各项税费",
-            "PAY_OTHER_OPERATE": "支付其他与经营活动有关的现金",
-            "OPERATE_OUTFLOW_OTHER": "经营活动现金流出的其他项目",
-            "TOTAL_OPERATE_OUTFLOW": "经营活动现金流出小计",
-            "NETCASH_OPERATE": "经营活动产生的现金流量净额",
-            # 投资活动现金流量
-            "WITHDRAW_INVEST": "收回投资收到的现金",
-            "RECEIVE_INVEST_INCOME": "取得投资收益收到的现金",
-            "DISPOSAL_LONG_ASSET": "处置固定资产无形资产和其他长期资产收回的现金净额",
-            "RECEIVE_OTHER_INVEST": "收到的其他与投资活动有关的现金",
-            "TOTAL_INVEST_INFLOW": "投资活动现金流入小计",
-            "CONSTRUCT_LONG_ASSET": "购建固定资产无形资产和其他长期资产支付的现金",
-            "INVEST_PAY_CASH": "投资支付的现金",
-            "PAY_OTHER_INVEST": "支付其他与投资活动有关的现金",
-            "TOTAL_INVEST_OUTFLOW": "投资活动现金流出小计",
-            "NETCASH_INVEST": "投资活动产生的现金流量净额",
-            # 筹资活动现金流量
-            "ASSIGN_DIVIDEND_PORFIT": "分配股利利润或偿付利息支付的现金",
-            "SUBSIDIARY_PAY_DIVIDEND": "其中子公司支付给少数股东的股利利润",
-            "PAY_OTHER_FINANCE": "支付的其他与筹资活动有关的现金",
-            "TOTAL_FINANCE_OUTFLOW": "筹资活动现金流出小计",
-            "NETCASH_FINANCE": "筹资活动产生的现金流量净额",
-            # 汇率变动及现金净增加额
-            "RATE_CHANGE_EFFECT": "汇率变动对现金及现金等价物的影响",
-            "CCE_ADD": "现金及现金等价物净增加额",
-            "BEGIN_CCE": "加期初现金及现金等价物余额",
-            "END_CCE": "期末现金及现金等价物余额",
-        }
-
-        def format_large_numbers(value):
-            """格式化大数字为中文格式（如：514.4亿）"""
-            if pd.isna(value) or value == 0:
-                return value
-
-            # 对于绝对值大于1亿的数字，转换为"亿"为单位
-            if abs(value) >= 100000000:
-                return f"{value / 100000000:.2f}亿"
-            # 对于绝对值大于1万的数字，转换为"万"为单位
-            elif abs(value) >= 10000:
-                return f"{value / 10000:.2f}万"
-            else:
-                return f"{value:.2f}"
-
         # 1. 筛选现金流量表主要项目相关的列
         available_columns = []
         for col in main_cash_flow_columns:
@@ -547,7 +410,7 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
                     indicator_qoq = indicator + "_QOQ"
                     if indicator_qoq in df.columns:
                         available_indicators["QOQ"].append(indicator_qoq)
-            print(f"available_indicators: \n{json.dumps(available_indicators, indent=2, ensure_ascii=False)}")
+            # print(f"available_indicators: \n{json.dumps(available_indicators, indent=2, ensure_ascii=False)}")
 
             for _type, _indicators in available_indicators.items():
                 if len(_indicators) == 0:
@@ -562,49 +425,58 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
                 # 创建该分类的DataFrame，包含报告期名称列
                 category_columns = ["REPORT_DATE_NAME"] + _indicators
                 category_data = df[category_columns].copy()
-
-                # 设置报告期名称作为索引
-                category_data = category_data.set_index("REPORT_DATE_NAME")
-                category_data.index.name = final_category_name
-
-                # 在转置前先将英文列名映射为中文
-                columns_to_rename = {}
-                for old_name, new_name in column_mapping.items():
-                    final_old_name = old_name
-                    final_new_name = new_name
-                    if _type == "YOY": 
-                        final_old_name = old_name + "_YOY"
-                        final_new_name = final_new_name + "(%)"
-                    elif _type == "QOQ":
-                        final_old_name = old_name + "_QOQ"
-                        final_new_name = final_new_name + "(%)"
-                    if final_old_name in category_data.columns:
-                        columns_to_rename[final_old_name] = final_new_name
-
-                if columns_to_rename:
-                    category_data = category_data.rename(columns=columns_to_rename)
-
-                # 转置数据：让报告期作为列，财务指标作为行
-                category_data = category_data.T
-
-                # 转置后，原来的列名（财务指标）变成了行索引
-                # 原来的行索引（报告期）变成了列名
-                # 现在需要重置索引，让财务指标名称作为第一列
-                category_data = category_data.reset_index()
-                category_data = category_data.rename(columns={"index": final_category_name})
-
-                # # 格式化数值：对于现金流量相关的大数字使用中文格式
-                # for col in category_data.columns:
-                #     for idx, value in category_data[col].items():
-                #         if pd.notna(value) and isinstance(value, (int, float)):
-                #             # 对于现金流量相关的大数字进行格式化
-                #             if abs(value) >= 10000:
-                #                         category_data.loc[idx, col] = format_large_numbers(value)
-
+                category_data.set_index("REPORT_DATE_NAME", inplace=True)
                 category_dataframes[final_category_name] = category_data
 
         return category_dataframes
 
+    # 现金流量表主要项目列名映射字典
+    em_financial_analysis_cash_flow_statement_column_mapping = {
+        # 基本信息
+        "REPORT_DATE": "报告期",
+        "REPORT_DATE_NAME": "报告期名称",
+        # 经营活动现金流量 - 现金流入
+        "SALES_SERVICES": "销售商品提供劳务收到的现金",
+        "DEPOSIT_INTERBANK_ADD": "客户存款和同业存放款项净增加额",
+        "RECEIVE_INTEREST_COMMISSION": "收取利息手续费及佣金的现金",
+        "RECEIVE_TAX_REFUND": "收到的税收返还",
+        "RECEIVE_OTHER_OPERATE": "收到其他与经营活动有关的现金",
+        "TOTAL_OPERATE_INFLOW": "经营活动现金流入小计",
+        # 经营活动现金流量 - 现金流出
+        "BUY_SERVICES": "购买商品接受劳务支付的现金",
+        "LOAN_ADVANCE_ADD": "客户贷款及垫款净增加额",
+        "PBC_INTERBANK_ADD": "存放中央银行和同业款项净增加额",
+        "PAY_INTEREST_COMMISSION": "支付利息手续费及佣金的现金",
+        "PAY_STAFF_CASH": "支付给职工以及为职工支付的现金",
+        "PAY_ALL_TAX": "支付的各项税费",
+        "PAY_OTHER_OPERATE": "支付其他与经营活动有关的现金",
+        "OPERATE_OUTFLOW_OTHER": "经营活动现金流出的其他项目",
+        "TOTAL_OPERATE_OUTFLOW": "经营活动现金流出小计",
+        "NETCASH_OPERATE": "经营活动产生的现金流量净额",
+        # 投资活动现金流量
+        "WITHDRAW_INVEST": "收回投资收到的现金",
+        "RECEIVE_INVEST_INCOME": "取得投资收益收到的现金",
+        "DISPOSAL_LONG_ASSET": "处置固定资产无形资产和其他长期资产收回的现金净额",
+        "RECEIVE_OTHER_INVEST": "收到的其他与投资活动有关的现金",
+        "TOTAL_INVEST_INFLOW": "投资活动现金流入小计",
+        "CONSTRUCT_LONG_ASSET": "购建固定资产无形资产和其他长期资产支付的现金",
+        "INVEST_PAY_CASH": "投资支付的现金",
+        "PAY_OTHER_INVEST": "支付其他与投资活动有关的现金",
+        "TOTAL_INVEST_OUTFLOW": "投资活动现金流出小计",
+        "NETCASH_INVEST": "投资活动产生的现金流量净额",
+        # 筹资活动现金流量
+        "ASSIGN_DIVIDEND_PORFIT": "分配股利利润或偿付利息支付的现金",
+        "SUBSIDIARY_PAY_DIVIDEND": "其中子公司支付给少数股东的股利利润",
+        "PAY_OTHER_FINANCE": "支付的其他与筹资活动有关的现金",
+        "TOTAL_FINANCE_OUTFLOW": "筹资活动现金流出小计",
+        "NETCASH_FINANCE": "筹资活动产生的现金流量净额",
+        # 汇率变动及现金净增加额
+        "RATE_CHANGE_EFFECT": "汇率变动对现金及现金等价物的影响",
+        "CCE_ADD": "现金及现金等价物净增加额",
+        "BEGIN_CCE": "加期初现金及现金等价物余额",
+        "END_CCE": "期末现金及现金等价物余额",
+    }
+    
     em_company_type = "4"
     em_code = symbol.replace(".", "").replace("SH", "").replace("SZ", "")
     if market_type == MarketType.A_SHARE:
@@ -622,27 +494,6 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
         else:
             raise ValueError(f"Invalid report period type: {report_date_type}")
 
-        # if report_date_type == '按报告期':
-        #     em_report_date_type = "0"
-        #     em_report_type = "1"
-        # elif report_date_type == '按年度':
-        #     em_report_date_type = "1"
-        #     em_report_type = "1"
-        # elif report_date_type == '按单季度':
-        #     em_report_date_type = "0"
-        #     em_report_type = "2"
-        # elif report_date_type == '报告期同比':
-        #     em_report_date_type = "0"
-        #     em_report_type = "1"
-        # elif report_date_type == '年度同比':
-        #     em_report_date_type = "1"
-        #     em_report_type = "1"
-        # elif report_date_type == '单季度环比':
-        #     em_report_date_type = "0"
-        #     em_report_type = "2"
-        # else:
-        #     raise ValueError(f"Invalid report period type: {report_date_type}")
-
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/xjllbDateAjaxNew?companyType={em_company_type}&reportDateType={em_report_date_type}&code={em_code}"
         response = await client.get(url)
         response.raise_for_status()
@@ -654,7 +505,7 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
             if report_date >= cutoff_date:
                 filtered_reports.append(report)
         if len(filtered_reports) == 0:
-            return {"success": False, "error": "No data found"}
+            return {}
         else:
             logger.info(f"Found {len(filtered_reports)} reports: {filtered_reports}")
             if report_date_type == ReportDateType.BY_PERIOD:
@@ -692,24 +543,28 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
                     em_df.to_json(f, force_ascii=False, indent=2)
 
                 # 格式化现金流量表数据
-                em_dfs = format_cash_flow_statement_dataframe(em_df, include_yoy, include_qoq)
+                em_dfs = create_category_cash_flow_statement_dataframes(em_df, include_yoy, include_qoq)
 
                 # 生成分类后的markdown报告
-                reports = {}
+                final_reports : dict[str, TradingReportResultPack] = {}
                 for category_name, category_df in em_dfs.items():
                     table_str = format_pd_dataframe_to_markdown(
-                        category_df, include_index=False
+                        category_df, include_index=True, transpose=True, column_mapping=em_financial_analysis_cash_flow_statement_column_mapping
                     )
-                    reports[category_name] = table_str
+                    final_reports[category_name] = TradingReportResultPack(
+                        dataframe=category_df,
+                        markdown_table=table_str,
+                        json_dict=json.loads(category_df.to_json(force_ascii=False, indent=2)),
+                    )
 
                 # 保存分类后的markdown报告
                 with open(
                     f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_{include_qoq}_reports.md",
                     "w",
                 ) as f:
-                    for category_name, table_str in reports.items():
+                    for category_name, report_item in final_reports.items():
                         f.write(f"\n\n## {category_name}\n")
-                        f.write(table_str)
+                        f.write(report_item.markdown_table)
                         f.write("\n")
 
                 # 保存分类后的JSON报告
@@ -717,11 +572,360 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
                     f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_{include_qoq}_reports.json",
                     "w",
                 ) as f:
-                    json.dump(reports, f, ensure_ascii=False, indent=2)
+                    r = {}
+                    for k, v in final_reports.items():
+                        r[k] = v.json_dict
+                    json.dump(r, f, ensure_ascii=False, indent=2)
+                return final_reports
+            else:
+                return {}
+    return {}
 
+async def em_retrieve_company_financial_analysis_balance_sheet(
+    market_type: MarketType,
+    symbol: str,
+    report_date_type: ReportDateType,
+    include_yoy: bool,
+    look_back_years: int,
+) -> dict[str, TradingReportResultPack]:
+    """
+    获取股票财务分析指标，按中文格式输出, https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=sh600519#zyzb-0
+    Args:
+        market_type: 市场类型
+        symbol: 股票代码
+        report_date_type: 报告期类型
+        include_yoy: 是否包含同比
+        look_back_years: 回溯年数
+    """
+    def create_category_balance_sheet_dataframes(df: pd.DataFrame, include_yoy: bool) -> dict[str, pd.DataFrame]:
+        """格式化资产负债表DataFrame，按分类分拆并返回分类后的字典，不进行转置"""
+        
+        # 资产负债表主要项目列名
+        main_balance_sheet_columns = [
+            # 基本信息
+            "REPORT_DATE",  # 报告期
+            "REPORT_DATE_NAME",  # 报告期名称
+            # 流动资产
+            "MONETARYFUNDS",  # 货币资金
+            "LEND_FUND",  # 拆出资金
+            "TRADE_FINASSET",  # 交易性金融资产
+            "TRADE_FINASSET_NOTFVTPL",  # 交易性金融资产
+            "NOTE_ACCOUNTS_RECE",  # 应收票据及应收账款
+            "NOTE_RECE",  # 其中:应收票据
+            "ACCOUNTS_RECE",  # 应收账款
+            "PREPAYMENT",  # 预付款项
+            "OTHER_RECE",  # 其他应收款合计
+            "BUY_RESALE_FINASSET",  # 买入返售金融资产
+            "INVENTORY",  # 存货
+            "NONCURRENT_ASSET_1YEAR",  # 一年内到期的非流动资产
+            "OTHER_CURRENT_ASSET",  # 其他流动资产
+            "TOTAL_CURRENT_ASSETS",  # 流动资产合计
+            # 非流动资产
+            "LOAN_ADVANCE",  # 发放贷款及垫款
+            "CREDITOR_INVEST",  # 债权投资
+            "OTHER_NONCURRENT_FINASSET",  # 其他非流动金融资产
+            "INVEST_REALESTATE",  # 投资性房地产
+            "FIXED_ASSET",  # 固定资产
+            "CIP",  # 在建工程
+            "LEASE_LIAB",  # 使用权资产
+            "INTANGIBLE_ASSET",  # 无形资产
+            "DEVELOP_EXPENSE",  # 开发支出
+            "LONG_PREPAID_EXPENSE",  # 长期待摊费用
+            "DEFER_TAX_ASSET",  # 递延所得税资产
+            "OTHER_NONCURRENT_ASSET",  # 其他非流动资产
+            "TOTAL_NONCURRENT_ASSETS",  # 非流动资产合计
+            "TOTAL_ASSETS",  # 资产总计
+            # 流动负债
+            "NOTE_ACCOUNTS_PAYABLE",  # 应付票据及应付账款
+            "ACCOUNTS_PAYABLE",  # 其中:应付账款
+            "CONTRACT_LIAB",  # 合同负债
+            "STAFF_SALARY_PAYABLE",  # 应付职工薪酬
+            "TAX_PAYABLE",  # 应交税费
+            "TOTAL_OTHER_PAYABLE",  # 其他应付款合计
+            "NONCURRENT_LIAB_1YEAR",  # 一年内到期的非流动负债
+            "OTHER_CURRENT_LIAB",  # 其他流动负债
+            "TOTAL_CURRENT_LIAB",  # 流动负债合计
+            # 所有者权益
+            "SHARE_CAPITAL",  # 实收资本（或股本）
+            "CAPITAL_RESERVE",  # 资本公积
+            "TREASURY_SHARES",  # 减:库存股
+            "OTHER_COMPRE_INCOME",  # 其他综合收益
+            "SURPLUS_RESERVE",  # 盈余公积
+            "GENERAL_RISK_RESERVE",  # 一般风险准备
+            "UNASSIGN_RPOFIT",  # 未分配利润
+            "TOTAL_PARENT_EQUITY",  # 归属于母公司股东权益总计
+            "MINORITY_EQUITY",  # 少数股东权益
+            "TOTAL_EQUITY",  # 股东权益合计
+            "TOTAL_LIAB_EQUITY",  # 负债和股东权益总计
+            # 审计意见
+            "OPINION_TYPE",  # 审计意见(境内)
+        ]
+
+        # 资产负债表分类及对应的列名
+        balance_sheet_categories = {
+            "流动资产": [
+                "MONETARYFUNDS",
+                "LEND_FUND",
+                "TRADE_FINASSET",
+                "TRADE_FINASSET_NOTFVTPL",
+                "NOTE_ACCOUNTS_RECE",
+                "NOTE_RECE",
+                "ACCOUNTS_RECE",
+                "PREPAYMENT",
+                "OTHER_RECE",
+                "BUY_RESALE_FINASSET",
+                "INVENTORY",
+                "NONCURRENT_ASSET_1YEAR",
+                "OTHER_CURRENT_ASSET",
+                "TOTAL_CURRENT_ASSETS",
+            ],
+            "非流动资产": [
+                "LOAN_ADVANCE",
+                "CREDITOR_INVEST",
+                "OTHER_NONCURRENT_FINASSET",
+                "INVEST_REALESTATE",
+                "FIXED_ASSET",
+                "CIP",
+                "LEASE_LIAB",
+                "INTANGIBLE_ASSET",
+                "DEVELOP_EXPENSE",
+                "LONG_PREPAID_EXPENSE",
+                "DEFER_TAX_ASSET",
+                "OTHER_NONCURRENT_ASSET",
+                "TOTAL_NONCURRENT_ASSETS",
+                "TOTAL_ASSETS",
+            ],
+            "流动负债": [
+                "NOTE_ACCOUNTS_PAYABLE",
+                "ACCOUNTS_PAYABLE",
+                "CONTRACT_LIAB",
+                "STAFF_SALARY_PAYABLE",
+                "TAX_PAYABLE",
+                "TOTAL_OTHER_PAYABLE",
+                "NONCURRENT_LIAB_1YEAR",
+                "OTHER_CURRENT_LIAB",
+                "TOTAL_CURRENT_LIAB",
+            ],
+            "所有者权益(或股东权益)": [
+                "SHARE_CAPITAL",
+                "CAPITAL_RESERVE",
+                "TREASURY_SHARES",
+                "OTHER_COMPRE_INCOME",
+                "SURPLUS_RESERVE",
+                "GENERAL_RISK_RESERVE",
+                "UNASSIGN_RPOFIT",
+                "TOTAL_PARENT_EQUITY",
+                "MINORITY_EQUITY",
+                "TOTAL_EQUITY",
+                "TOTAL_LIAB_EQUITY",
+            ],
+        }
+
+        # 筛选资产负债表主要项目相关的列
+        available_columns = []
+        for col in main_balance_sheet_columns:
+            if col in df.columns:
+                available_columns.append(col)
+            if include_yoy:
+                if col + "_YOY" in df.columns:
+                    available_columns.append(col + "_YOY")
+
+        # 筛选数据，只保留主要资产负债表列
+        if available_columns:
+            df = df[available_columns].copy()
+            
+        # 按分类分拆数据
+        category_dataframes = {}
+        for category_name, indicators in balance_sheet_categories.items():
+            # 获取该分类下存在的指标
+            available_indicators = {
+                "NORMAL": [],
+            }
+            for indicator in indicators:
+                if indicator in df.columns:
+                    available_indicators["NORMAL"].append(indicator)                    
+                    
+            if include_yoy:
+                available_indicators["YOY"] = []
+                for indicator in indicators:
+                    indicator_yoy = indicator + "_YOY"
+                    if indicator_yoy in df.columns:
+                        available_indicators["YOY"].append(indicator_yoy)
+
+            for _type, _indicators in available_indicators.items():
+                if len(_indicators) == 0:
+                    continue
+                
+                final_category_name = category_name
+                if _type == "YOY":
+                    final_category_name = final_category_name + "-同比"
+                
+                # 创建该分类的DataFrame，包含报告期名称列
+                category_columns = ["REPORT_DATE_NAME"] + _indicators
+                category_data = df[category_columns].copy()
+                category_data.set_index("REPORT_DATE_NAME", inplace=True)
+                category_dataframes[final_category_name] = category_data
+
+        return category_dataframes
+
+    # 资产负债表主要项目列名映射字典
+    em_financial_analysis_balance_sheet_column_mapping = {
+        # 基本信息
+        "REPORT_DATE": "报告期",
+        "REPORT_DATE_NAME": "报告期名称",
+        # 流动资产
+        "MONETARYFUNDS": "货币资金",
+        "LEND_FUND": "拆出资金",
+        "TRADE_FINASSET": "交易性金融资产",
+        "TRADE_FINASSET_NOTFVTPL": "交易性金融资产",
+        "NOTE_ACCOUNTS_RECE": "应收票据及应收账款",
+        "NOTE_RECE": "其中:应收票据",
+        "ACCOUNTS_RECE": "应收账款",
+        "PREPAYMENT": "预付款项",
+        "OTHER_RECE": "其他应收款合计",
+        "BUY_RESALE_FINASSET": "买入返售金融资产",
+        "INVENTORY": "存货",
+        "NONCURRENT_ASSET_1YEAR": "一年内到期的非流动资产",
+        "OTHER_CURRENT_ASSET": "其他流动资产",
+        "TOTAL_CURRENT_ASSETS": "流动资产合计",
+        # 非流动资产
+        "LOAN_ADVANCE": "发放贷款及垫款",
+        "CREDITOR_INVEST": "债权投资",
+        "OTHER_NONCURRENT_FINASSET": "其他非流动金融资产",
+        "INVEST_REALESTATE": "投资性房地产",
+        "FIXED_ASSET": "固定资产",
+        "CIP": "在建工程",
+        "LEASE_LIAB": "使用权资产",
+        "INTANGIBLE_ASSET": "无形资产",
+        "DEVELOP_EXPENSE": "开发支出",
+        "LONG_PREPAID_EXPENSE": "长期待摊费用",
+        "DEFER_TAX_ASSET": "递延所得税资产",
+        "OTHER_NONCURRENT_ASSET": "其他非流动资产",
+        "TOTAL_NONCURRENT_ASSETS": "非流动资产合计",
+        "TOTAL_ASSETS": "资产总计",
+        # 流动负债
+        "NOTE_ACCOUNTS_PAYABLE": "应付票据及应付账款",
+        "ACCOUNTS_PAYABLE": "其中:应付账款",
+        "CONTRACT_LIAB": "合同负债",
+        "STAFF_SALARY_PAYABLE": "应付职工薪酬",
+        "TAX_PAYABLE": "应交税费",
+        "TOTAL_OTHER_PAYABLE": "其他应付款合计",
+        "NONCURRENT_LIAB_1YEAR": "一年内到期的非流动负债",
+        "OTHER_CURRENT_LIAB": "其他流动负债",
+        "TOTAL_CURRENT_LIAB": "流动负债合计",
+        # 所有者权益
+        "SHARE_CAPITAL": "实收资本（或股本）",
+        "CAPITAL_RESERVE": "资本公积",
+        "TREASURY_SHARES": "减:库存股",
+        "OTHER_COMPRE_INCOME": "其他综合收益",
+        "SURPLUS_RESERVE": "盈余公积",
+        "GENERAL_RISK_RESERVE": "一般风险准备",
+        "UNASSIGN_RPOFIT": "未分配利润",
+        "TOTAL_PARENT_EQUITY": "归属于母公司股东权益总计",
+        "MINORITY_EQUITY": "少数股东权益",
+        "TOTAL_EQUITY": "股东权益合计",
+        "TOTAL_LIAB_EQUITY": "负债和股东权益总计",
+        # 审计意见
+        "OPINION_TYPE": "审计意见(境内)",
+    }
+    if include_yoy:
+        em_financial_analysis_balance_sheet_column_mapping = {
+            **em_financial_analysis_balance_sheet_column_mapping,
+            **{
+                key + "_YOY": value + "(%)" for key, value in em_financial_analysis_balance_sheet_column_mapping.items()
+            }
+        }    
+    
+    em_company_type = "4"
+    em_code = symbol.replace(".", "").replace("SH", "").replace("SZ", "")
+    if market_type == MarketType.A_SHARE:
+        em_code = "SH" + em_code
+    elif market_type == MarketType.B_SHARE:
+        em_code = "SZ" + em_code
+    cutoff_date = datetime(datetime.now().year - look_back_years, 1, 1)
+    async with httpx.AsyncClient(headers=EM_HTTP_HEADERS_DEFAULT) as client:
+        if report_date_type == ReportDateType.BY_PERIOD:
+            em_report_date_type = "0"
+        elif report_date_type == ReportDateType.YEARLY:
+            em_report_date_type = "1"
+        else:
+            raise ValueError(f"Invalid report period type: {report_date_type}")
+
+        url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/zcfzbDateAjaxNew?companyType={em_company_type}&reportDateType={em_report_date_type}&code={em_code}"
+        response = await client.get(url)
+        response.raise_for_status()
+        data = response.json()
+        avalible_reports = data["data"]
+        filtered_reports = []
+        for report in avalible_reports:
+            report_date = datetime.fromisoformat(report["REPORT_DATE"])
+            if report_date >= cutoff_date:
+                filtered_reports.append(report)
+        if len(filtered_reports) == 0:
+            return {"success": False, "error": "No data found"}
+        else:
+            logger.info(f"Found {len(filtered_reports)} reports: {filtered_reports}")
+            em_report_type = "1"
+            if report_date_type == ReportDateType.BY_PERIOD:
+                em_report_date_type = "0"
+            elif report_date_type == ReportDateType.YEARLY:
+                em_report_date_type = "1"
+            else:
+                raise ValueError(f"Invalid report period type: {report_date_type}")   
+    
+            all_data = []
+            for i in range(0, len(filtered_reports), 5):
+                batch_reports = filtered_reports[i : i + 5]
+                em_dates = ",".join(
+                    [report["REPORT_DATE"][0:10] for report in batch_reports]
+                )
+                data_url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/zcfzbAjaxNew?companyType={em_company_type}&reportDateType={em_report_date_type}&reportType={em_report_type}&dates={em_dates}&code={em_code}"
+                response = await client.get(data_url)
+                response.raise_for_status()
+                data = response.json()
+                logger.info(f"response size: {len(data['data'])}")
+                if data["data"]:
+                    all_data.extend(data["data"])
+
+            if all_data:
+                em_df = pd.DataFrame(all_data)
+                with open(
+                    f"./logs/em_retrieve_company_financial_analysis_balance_sheet_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_raw.json",
+                    "w",
+                ) as f:
+                    em_df.to_json(f, force_ascii=False, indent=2)
+                    
+                em_dfs = create_category_balance_sheet_dataframes(em_df, include_yoy)
+                final_reports : dict[str, TradingReportResultPack] = {}
+                for category_name, category_df in em_dfs.items():
+                    table_str = format_pd_dataframe_to_markdown(category_df, include_index=True, transpose=True, column_mapping=em_financial_analysis_balance_sheet_column_mapping)
+                    final_reports[category_name] = TradingReportResultPack(
+                        dataframe=category_df,
+                        markdown_table=table_str,
+                        json_dict=json.loads(category_df.to_json(force_ascii=False, indent=2)),
+                    )
+                    
+                with open(
+                    f"./logs/em_retrieve_company_financial_analysis_balance_sheet_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_reports.json",
+                    "w",
+                ) as f:
+                    r = {}
+                    for k, v in final_reports.items():
+                        r[k] = v.json_dict
+                    json.dump(r, f, ensure_ascii=False, indent=2)
+                    
+                with open(
+                    f"./logs/em_retrieve_company_financial_analysis_balance_sheet_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_reports.md",
+                    "w",
+                ) as f:
+                    for category_name, report_item in final_reports.items():
+                        f.write(f"\n\n## {category_name}\n")
+                        f.write(report_item.markdown_table)
+                        f.write("\n")
+                
+                return {"success": True, "reports": final_reports}
             else:
                 return {"success": False, "error": "No data found"}
-        return {"success": True, "reports": reports}
 
 
 if __name__ == "__main__":
@@ -732,12 +936,12 @@ if __name__ == "__main__":
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
-        # await em_retrieve_company_financial_analysis_indicators(
-        #     market_type=MarketType.A_SHARE,
-        #     symbol="600519",
-        #     report_period_type=ReportPeriodType.PERIODICALLY,
-        #     look_back_years=2,
-        # )
+        await em_retrieve_company_financial_analysis_indicators(
+            market_type=MarketType.A_SHARE,
+            symbol="600519",
+            report_period_type=ReportDateType.BY_PERIOD,
+            look_back_years=2,
+        )
         # await em_retrieve_company_financial_analysis_indicators(
         #     market_type=MarketType.A_SHARE,
         #     symbol="600519",
@@ -752,8 +956,8 @@ if __name__ == "__main__":
         # )
         # await em_retrieve_company_financial_analysis_indicators(
         #     market_type=MarketType.B_SHARE,
-        #     symbol="002240",
-        #     report_period_type=ReportPeriodType.PERIODICALLY,
+        #     symbol="600519",
+        #     report_period_type=ReportDateType.BY_PERIOD,
         #     look_back_years=2,
         # )
         # await em_retrieve_company_financial_analysis_indicators(
@@ -767,13 +971,20 @@ if __name__ == "__main__":
         #     symbol="002240",
         #     report_period_type=ReportPeriodType.YEARLY,
         #     look_back_years=2,
-        # )
+        # # )
         await em_retrieve_company_financial_analysis_cash_flow_statement(
             market_type=MarketType.A_SHARE,
             symbol="600519",
             report_date_type=ReportDateType.YEARLY,
             include_yoy=True,
             include_qoq=False,
+            look_back_years=2,
+        )
+        await em_retrieve_company_financial_analysis_balance_sheet(
+            market_type=MarketType.A_SHARE,
+            symbol="600519",
+            report_date_type=ReportDateType.BY_PERIOD,
+            include_yoy=True,
             look_back_years=2,
         )
 
