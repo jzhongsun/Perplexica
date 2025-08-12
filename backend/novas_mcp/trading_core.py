@@ -10,7 +10,7 @@ logger.setLevel(logging.INFO)
 
 
 class ReportPeriodType(str, Enum):
-    PERIODICALLY = "periodically"
+    BY_PERIOD = "by_period"
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
 
