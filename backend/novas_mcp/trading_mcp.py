@@ -3,7 +3,7 @@ from datetime import datetime
 
 from .trading_core import (
     MarketType,
-    ReportPeriodType,
+    ReportDateType,
     RetrieveCompanyFundamentalsRequest,
     RetrieveCompanyFundamentalsResponse,
     RetrieveCompanyInsiderSentimentRequest,
@@ -102,7 +102,7 @@ def setup_trading_mcp_server(mcp: FastMCP):
     async def retrieve_stockstats_indicators_report(
         market_type: Annotated[MarketType, "The market type of the stock symbol"],
         symbol: Annotated[str, "The symbol of the stock to retrieve price data for"],
-        report_period_type: Annotated[ReportPeriodType, "The type of the report to retrieve, such as 'quarterly', 'yearly' or 'report_period'"],
+        report_period_type: Annotated[ReportDateType, "The type of the report to retrieve, such as 'quarterly', 'yearly' or 'report_period'"],
         look_back_years: Annotated[int, "how many years to look back, default is 3"] = Field(default=3, description="how many years to look back, default is 3"),
     ) -> RetrieveStockStatsIndicatorsReportResponse:
         logger.info(f"Retrieving stock stats indicators report for {symbol}")
@@ -214,7 +214,7 @@ def setup_trading_mcp_server(mcp: FastMCP):
     async def retrieve_financial_analysis_indicators(
         market_type: Annotated[MarketType, "The market type of the stock symbol"],
         symbol: Annotated[str, "The symbol of the stock to retrieve financial analysis indicators for"],
-        report_period_type: Annotated[ReportPeriodType, "The type of the financial analysis indicators to retrieve, such as 'quarterly', 'yearly' or 'report_period'"],
+        report_period_type: Annotated[ReportDateType, "The type of the financial analysis indicators to retrieve, such as 'quarterly', 'yearly' or 'report_period'"],
         look_back_years: Annotated[
             int, "The number of years to look back for the financial analysis indicators, default is 2"
         ],

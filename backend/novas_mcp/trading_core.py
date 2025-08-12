@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-class ReportPeriodType(str, Enum):
+class ReportDateType(str, Enum):
     BY_PERIOD = "by_period"
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
@@ -72,11 +72,11 @@ class RetrieveStockStatsIndicatorsReportRequest(BaseModel):
         MarketType, "The market type of provided stock symbol"
     ]
     symbol: str
-    report_period_type: ReportPeriodType
+    report_period_type: ReportDateType
     look_back_years: int
 
 
-class RetrieveStockStatsIndicatorsReportItem(BaseModel):
+class RetrieveNamedReportItem(BaseModel):
     indicator_name: str = Field(description="The name of the indicator")
     indicator_report_markdown_table: str = Field(
         description="The markdown table of the indicator report"
@@ -85,7 +85,7 @@ class RetrieveStockStatsIndicatorsReportItem(BaseModel):
 
 class RetrieveStockStatsIndicatorsReportResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    reports: List[RetrieveStockStatsIndicatorsReportItem] = Field(
+    reports: List[RetrieveNamedReportItem] = Field(
         description="A list of indicator names and their reports"
     )
 
@@ -105,7 +105,7 @@ async def _retrieve_stock_stats_indicators_report(
     return RetrieveStockStatsIndicatorsReportResponse(
         success=reports["success"],
         reports=[
-            RetrieveStockStatsIndicatorsReportItem(
+            RetrieveNamedReportItem(
                 indicator_name=indicator_name, indicator_report_markdown_table=report
             )
             for indicator_name, report in reports["reports"].items()
@@ -190,9 +190,17 @@ class RetrieveCompanyCashFlowStatementRequest(BaseModel):
     symbol: str = Annotated[
         str, "The symbol of the stock to retrieve cash flow statement for"
     ]
-    report_type: ReportPeriodType = Annotated[
-        ReportPeriodType,
+    report_date_type: ReportDateType = Annotated[
+        ReportDateType,
         "The type of the cash flow statement to retrieve, such as 'quarterly', 'yearly' or 'report_period'",
+    ]
+    include_yoy: bool = Annotated[
+        bool,
+        "Whether to include year-over-year (YOY) indicators, default is False",
+    ]
+    include_qoq: bool = Annotated[
+        bool,
+        "Whether to include quarter-over-quarter (QOQ) indicators, default is False",
     ]
     look_back_years: int = Annotated[
         int,
@@ -201,23 +209,42 @@ class RetrieveCompanyCashFlowStatementRequest(BaseModel):
 
 
 class RetrieveCompanyCashFlowStatementResponse(BaseModel):
-    cash_flow_statement: str
+    success: bool = Field(description="Whether the request is successful")
+    market_type: MarketType = Field(description="The market type of provided stock symbol")
+    symbol: str = Field(description="The symbol of the stock to retrieve cash flow statement for")
+    report_date_type: ReportDateType = Field(description="The type of the cash flow statement to retrieve, such as 'quarterly', 'yearly' or 'report_period'")
+    look_back_years: int = Field(description="The number of years to look back for the cash flow statement, default is 5")
+    reports: List[RetrieveNamedReportItem] = Field(
+        description="A list of indicator names and their reports, each report is a markdown table"
+    )
 
 
 async def _retrieve_company_cash_flow_statement(
     request: RetrieveCompanyCashFlowStatementRequest,
 ) -> RetrieveCompanyCashFlowStatementResponse:
     logger.info(f"Retrieving company cash flow statement for {request}")
-    from novas_mcp.trading.trading_akshare import akshare_retrieve_company_cash_flow_statement
+    from novas_mcp.trading.trading_em import em_retrieve_company_financial_analysis_cash_flow_statement
 
-    cash_flow_statement = akshare_retrieve_company_cash_flow_statement(
+    cash_flow_statement = await em_retrieve_company_financial_analysis_cash_flow_statement(
         request.market_type,
         request.symbol,
-        request.report_type,
+        request.report_date_type,
+        request.include_yoy,
+        request.include_qoq,
         request.look_back_years,
     )
     return RetrieveCompanyCashFlowStatementResponse(
-        cash_flow_statement="Company cash flow statement"
+        success=cash_flow_statement["success"],
+        market_type=request.market_type,
+        symbol=request.symbol,
+        report_date_type=request.report_date_type,
+        look_back_years=request.look_back_years,
+        reports=[
+            RetrieveNamedReportItem(
+                indicator_name=indicator_name, indicator_report_markdown_table=report
+            )
+            for indicator_name, report in cash_flow_statement.items()
+        ],
     )
 
 
@@ -226,7 +253,7 @@ class RetrieveCompanyFinancialAnalysisIndicatorsRequest(BaseModel):
         MarketType, "The market type of provided stock symbol"
     ]
     symbol: str
-    report_period_type: ReportPeriodType
+    report_period_type: ReportDateType
     look_back_years: int
 
 
@@ -238,13 +265,13 @@ class RetrieveCompanyFinancialAnalysisIndicatorsResponse(BaseModel):
     symbol: str = Field(
         description="The symbol of the stock to retrieve financial analysis indicators for"
     )
-    report_period_type: ReportPeriodType = Field(
+    report_period_type: ReportDateType = Field(
         description="The type of the financial analysis indicators to retrieve, such as 'quarterly', 'yearly' or 'report_period'"
     )
     look_back_years: int = Field(
         description="The number of years to look back for the financial analysis indicators, default is 2"
     )
-    reports: List[RetrieveStockStatsIndicatorsReportItem] = Field(
+    reports: List[RetrieveNamedReportItem] = Field(
         description="A list of indicator names and their reports"
     )
 
@@ -268,7 +295,7 @@ async def _retrieve_company_financial_analysis_indicators(
         report_period_type=request.report_period_type,
         look_back_years=request.look_back_years,
         reports=[
-            RetrieveStockStatsIndicatorsReportItem(
+            RetrieveNamedReportItem(
                 indicator_name=indicator_name, indicator_report_markdown_table=report
             )
             for indicator_name, report in reports["reports"].items()

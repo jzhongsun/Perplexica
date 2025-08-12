@@ -1,7 +1,7 @@
 import asyncio
 import httpx
 from novas_mcp.utils import format_pd_dataframe_to_markdown
-from novas_mcp.trading_core import MarketType, ReportPeriodType
+from novas_mcp.trading_core import MarketType, ReportDateType
 import pandas as pd
 from datetime import datetime
 import json
@@ -18,7 +18,7 @@ EM_HTTP_HEADERS_DEFAULT = {
 async def em_retrieve_company_financial_analysis_indicators(
     market_type: MarketType,
     symbol: str,
-    report_period_type: ReportPeriodType,
+    report_period_type: ReportDateType,
     look_back_years: int,
 ) -> dict[str, str]:
     """
@@ -37,13 +37,13 @@ async def em_retrieve_company_financial_analysis_indicators(
     elif market_type == MarketType.B_SHARE:
         symbol = "SZ" + security_code
 
-    def get_financial_indicator_mapping(report_period_type: ReportPeriodType):
+    def get_financial_indicator_mapping(report_period_type: ReportDateType):
         """财务分析指标中文映射字典 - 基于akshare实际列名"""
         return {
             # 每股指标
             "EPSJB": (
                 "摊薄每股收益(元)"
-                if report_period_type == ReportPeriodType.QUARTERLY
+                if report_period_type == ReportDateType.QUARTERLY
                 else "基本每股收益(元)"
             ),
             "EPSKCJB": "扣非每股收益(元)",
@@ -153,7 +153,7 @@ async def em_retrieve_company_financial_analysis_indicators(
             ],
         }
 
-    def create_category_dataframes(df, report_period_type: ReportPeriodType):
+    def create_category_dataframes(df, report_period_type: ReportDateType):
         """将财务数据按分类分拆成多个DataFrame"""
         indicator_mapping = get_financial_indicator_mapping(report_period_type)
         categories = get_financial_indicator_categories()
@@ -222,11 +222,11 @@ async def em_retrieve_company_financial_analysis_indicators(
     ak_df: pd.DataFrame = None
     async with httpx.AsyncClient(headers=EM_HTTP_HEADERS_DEFAULT) as client:
         analysis_type = "0"
-        if report_period_type == ReportPeriodType.BY_PERIOD:
+        if report_period_type == ReportDateType.BY_PERIOD:
             analysis_type = "0"
-        elif report_period_type == ReportPeriodType.YEARLY:
+        elif report_period_type == ReportDateType.YEARLY:
             analysis_type = "1"
-        elif report_period_type == ReportPeriodType.QUARTERLY:
+        elif report_period_type == ReportDateType.QUARTERLY:
             analysis_type = "2"
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type={analysis_type}&code={symbol}"
         response = await client.get(url)
@@ -316,7 +316,7 @@ async def em_retrieve_company_financial_analysis_indicators(
 async def em_retrieve_company_financial_analysis_cash_flow_statement(
     market_type: MarketType,
     symbol: str,
-    report_date_type: ReportPeriodType,
+    report_date_type: ReportDateType,
     include_yoy: bool,
     include_qoq: bool,
     look_back_years: int,
@@ -613,11 +613,11 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
         em_code = "SZ" + em_code
     cutoff_date = datetime(datetime.now().year - look_back_years, 1, 1)
     async with httpx.AsyncClient(headers=EM_HTTP_HEADERS_DEFAULT) as client:
-        if report_date_type == ReportPeriodType.BY_PERIOD:
+        if report_date_type == ReportDateType.BY_PERIOD:
             em_report_date_type = "0"
-        elif report_date_type == ReportPeriodType.YEARLY:
+        elif report_date_type == ReportDateType.YEARLY:
             em_report_date_type = "1"
-        elif report_date_type == ReportPeriodType.QUARTERLY:
+        elif report_date_type == ReportDateType.QUARTERLY:
             em_report_date_type = "2"
         else:
             raise ValueError(f"Invalid report period type: {report_date_type}")
@@ -657,13 +657,13 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
             return {"success": False, "error": "No data found"}
         else:
             logger.info(f"Found {len(filtered_reports)} reports: {filtered_reports}")
-            if report_date_type == ReportPeriodType.BY_PERIOD:
+            if report_date_type == ReportDateType.BY_PERIOD:
                 em_report_date_type = "0"
                 em_report_type = "1"
-            elif report_date_type == ReportPeriodType.YEARLY:
+            elif report_date_type == ReportDateType.YEARLY:
                 em_report_date_type = "1"
                 em_report_type = "1"
-            elif report_date_type == ReportPeriodType.QUARTERLY:
+            elif report_date_type == ReportDateType.QUARTERLY:
                 em_report_date_type = "0"
                 em_report_type = "2"
             else:
@@ -771,7 +771,7 @@ if __name__ == "__main__":
         await em_retrieve_company_financial_analysis_cash_flow_statement(
             market_type=MarketType.A_SHARE,
             symbol="600519",
-            report_date_type=ReportPeriodType.YEARLY,
+            report_date_type=ReportDateType.YEARLY,
             include_yoy=True,
             include_qoq=False,
             look_back_years=2,
