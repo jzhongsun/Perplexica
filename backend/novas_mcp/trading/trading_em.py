@@ -15,7 +15,6 @@ EM_HTTP_HEADERS_DEFAULT = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 }
 
-
 async def em_retrieve_company_financial_analysis_indicators(
     market_type: MarketType,
     symbol: str,
@@ -317,8 +316,9 @@ async def em_retrieve_company_financial_analysis_indicators(
 async def em_retrieve_company_financial_analysis_cash_flow_statement(
     market_type: MarketType,
     symbol: str,
-    report_period_type: ReportPeriodType,
-    report_type: str,
+    report_date_type: ReportPeriodType,
+    include_yoy: bool,
+    include_qoq: bool,
     look_back_years: int,
 ) -> dict[str, str]:
     """
@@ -335,7 +335,7 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
     """
 
     def format_cash_flow_statement_dataframe(
-        df: pd.DataFrame, report_period_type: ReportPeriodType
+        df: pd.DataFrame, include_yoy: bool, include_qoq: bool
     ) -> dict[str, pd.DataFrame]:
         """格式化现金流量表DataFrame，在转置前按分类分拆并返回分类后的字典"""
 
@@ -499,6 +499,12 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
         for col in main_cash_flow_columns:
             if col in df.columns:
                 available_columns.append(col)
+            if include_yoy:
+                if col + "_YOY" in df.columns:
+                    available_columns.append(col + "_YOY")
+            if include_qoq:
+                if col + "_QOQ" in df.columns:
+                    available_columns.append(col + "_QOQ")
 
         # 筛选数据，只保留主要现金流量列
         if available_columns:
@@ -522,25 +528,58 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
 
         for category_name, indicators in cash_flow_categories.items():
             # 获取该分类下存在的指标
-            available_indicators = []
+            available_indicators = {
+                "NORMAL": [],
+            }
             for indicator in indicators:
                 if indicator in df.columns:
-                    available_indicators.append(indicator)
+                    available_indicators["NORMAL"].append(indicator)
+                    
+            if include_yoy:
+                available_indicators["YOY"] = []
+                for indicator in indicators:
+                    indicator_yoy = indicator + "_YOY"
+                    if indicator_yoy in df.columns:
+                        available_indicators["YOY"].append(indicator_yoy)
+            if include_qoq:
+                available_indicators["QOQ"] = []
+                for indicator in indicators:
+                    indicator_qoq = indicator + "_QOQ"
+                    if indicator_qoq in df.columns:
+                        available_indicators["QOQ"].append(indicator_qoq)
+            print(f"available_indicators: \n{json.dumps(available_indicators, indent=2, ensure_ascii=False)}")
 
-            if available_indicators:
+            for _type, _indicators in available_indicators.items():
+                if len(_indicators) == 0:
+                    continue
+                
+                final_category_name = category_name
+                if _type == "YOY":
+                    final_category_name = final_category_name + "-同比"
+                elif _type == "QOQ":
+                    final_category_name = final_category_name + "-环比"
+                
                 # 创建该分类的DataFrame，包含报告期名称列
-                category_columns = ["REPORT_DATE_NAME"] + available_indicators
+                category_columns = ["REPORT_DATE_NAME"] + _indicators
                 category_data = df[category_columns].copy()
 
                 # 设置报告期名称作为索引
                 category_data = category_data.set_index("REPORT_DATE_NAME")
-                category_data.index.name = category_name
+                category_data.index.name = final_category_name
 
                 # 在转置前先将英文列名映射为中文
                 columns_to_rename = {}
                 for old_name, new_name in column_mapping.items():
-                    if old_name in category_data.columns:
-                        columns_to_rename[old_name] = new_name
+                    final_old_name = old_name
+                    final_new_name = new_name
+                    if _type == "YOY": 
+                        final_old_name = old_name + "_YOY"
+                        final_new_name = final_new_name + "(%)"
+                    elif _type == "QOQ":
+                        final_old_name = old_name + "_QOQ"
+                        final_new_name = final_new_name + "(%)"
+                    if final_old_name in category_data.columns:
+                        columns_to_rename[final_old_name] = final_new_name
 
                 if columns_to_rename:
                     category_data = category_data.rename(columns=columns_to_rename)
@@ -552,7 +591,7 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
                 # 原来的行索引（报告期）变成了列名
                 # 现在需要重置索引，让财务指标名称作为第一列
                 category_data = category_data.reset_index()
-                category_data = category_data.rename(columns={"index": category_name})
+                category_data = category_data.rename(columns={"index": final_category_name})
 
                 # # 格式化数值：对于现金流量相关的大数字使用中文格式
                 # for col in category_data.columns:
@@ -562,30 +601,9 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
                 #             if abs(value) >= 10000:
                 #                         category_data.loc[idx, col] = format_large_numbers(value)
 
-                category_dataframes[category_name] = category_data
+                category_dataframes[final_category_name] = category_data
 
         return category_dataframes
-
-    if report_type == '按报告期':
-        em_report_date_type = "0"
-        em_report_type = "1"
-    elif report_type == '按年度':
-        em_report_date_type = "1"
-        em_report_type = "1"
-    elif report_type == '按单季度':
-        em_report_date_type = "0"
-        em_report_type = "2"
-    elif report_type == '报告期同比':
-        em_report_date_type = "0"
-        em_report_type = "1"
-    elif report_type == '年度同比':
-        em_report_date_type = "1"
-        em_report_type = "1"
-    elif report_type == '单季度环比':
-        em_report_date_type = "0"
-        em_report_type = "2"
-    else:
-        raise ValueError(f"Invalid report type: {report_type}")
 
     em_company_type = "4"
     em_code = symbol.replace(".", "").replace("SH", "").replace("SZ", "")
@@ -595,6 +613,36 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
         em_code = "SZ" + em_code
     cutoff_date = datetime(datetime.now().year - look_back_years, 1, 1)
     async with httpx.AsyncClient(headers=EM_HTTP_HEADERS_DEFAULT) as client:
+        if report_date_type == ReportPeriodType.BY_PERIOD:
+            em_report_date_type = "0"
+        elif report_date_type == ReportPeriodType.YEARLY:
+            em_report_date_type = "1"
+        elif report_date_type == ReportPeriodType.QUARTERLY:
+            em_report_date_type = "2"
+        else:
+            raise ValueError(f"Invalid report period type: {report_date_type}")
+
+        # if report_date_type == '按报告期':
+        #     em_report_date_type = "0"
+        #     em_report_type = "1"
+        # elif report_date_type == '按年度':
+        #     em_report_date_type = "1"
+        #     em_report_type = "1"
+        # elif report_date_type == '按单季度':
+        #     em_report_date_type = "0"
+        #     em_report_type = "2"
+        # elif report_date_type == '报告期同比':
+        #     em_report_date_type = "0"
+        #     em_report_type = "1"
+        # elif report_date_type == '年度同比':
+        #     em_report_date_type = "1"
+        #     em_report_type = "1"
+        # elif report_date_type == '单季度环比':
+        #     em_report_date_type = "0"
+        #     em_report_type = "2"
+        # else:
+        #     raise ValueError(f"Invalid report period type: {report_date_type}")
+
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/xjllbDateAjaxNew?companyType={em_company_type}&reportDateType={em_report_date_type}&code={em_code}"
         response = await client.get(url)
         response.raise_for_status()
@@ -609,6 +657,18 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
             return {"success": False, "error": "No data found"}
         else:
             logger.info(f"Found {len(filtered_reports)} reports: {filtered_reports}")
+            if report_date_type == ReportPeriodType.BY_PERIOD:
+                em_report_date_type = "0"
+                em_report_type = "1"
+            elif report_date_type == ReportPeriodType.YEARLY:
+                em_report_date_type = "1"
+                em_report_type = "1"
+            elif report_date_type == ReportPeriodType.QUARTERLY:
+                em_report_date_type = "0"
+                em_report_type = "2"
+            else:
+                raise ValueError(f"Invalid report period type: {report_date_type}")   
+                     
             all_data = []
             for i in range(0, len(filtered_reports), 5):
                 batch_reports = filtered_reports[i : i + 5]
@@ -626,17 +686,17 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
             if all_data:
                 em_df = pd.DataFrame(all_data)
                 with open(
-                    f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_period_type.value}_{report_type}_raw.json",
+                    f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_{include_qoq}_raw.json",
                     "w",
                 ) as f:
                     em_df.to_json(f, force_ascii=False, indent=2)
 
                 # 格式化现金流量表数据
-                em_df = format_cash_flow_statement_dataframe(em_df, report_period_type)
+                em_dfs = format_cash_flow_statement_dataframe(em_df, include_yoy, include_qoq)
 
                 # 生成分类后的markdown报告
                 reports = {}
-                for category_name, category_df in em_df.items():
+                for category_name, category_df in em_dfs.items():
                     table_str = format_pd_dataframe_to_markdown(
                         category_df, include_index=False
                     )
@@ -644,7 +704,7 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
 
                 # 保存分类后的markdown报告
                 with open(
-                    f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_period_type.value}_{report_type}_reports.md",
+                    f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_{include_qoq}_reports.md",
                     "w",
                 ) as f:
                     for category_name, table_str in reports.items():
@@ -654,7 +714,7 @@ async def em_retrieve_company_financial_analysis_cash_flow_statement(
 
                 # 保存分类后的JSON报告
                 with open(
-                    f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_period_type.value}_{report_type}_reports.json",
+                    f"./logs/em_retrieve_company_financial_analysis_cash_flow_statement_{market_type.value}_{symbol}_{report_date_type.value}_{include_yoy}_{include_qoq}_reports.json",
                     "w",
                 ) as f:
                     json.dump(reports, f, ensure_ascii=False, indent=2)
@@ -711,9 +771,10 @@ if __name__ == "__main__":
         await em_retrieve_company_financial_analysis_cash_flow_statement(
             market_type=MarketType.A_SHARE,
             symbol="600519",
-            report_period_type=ReportPeriodType.QUARTERLY,
-            report_type="2",
-            look_back_years=1,
+            report_date_type=ReportPeriodType.YEARLY,
+            include_yoy=True,
+            include_qoq=False,
+            look_back_years=2,
         )
 
     # asyncio.run(akshare_retrieve_company_cash_flow_statement(
