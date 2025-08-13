@@ -205,7 +205,7 @@ async def em_retrieve_company_financial_analysis_indicators(
         
     if "REPORT_DATE_NAME" not in ak_df.columns:
         ak_df["REPORT_DATE_NAME"] = ak_df["REPORT_DATE_T"].dt.strftime("%Y-%m-%d")
-    print(ak_df)
+    # print(ak_df)
     # 按分类分拆数据
     category_dataframes = create_category_dataframes(ak_df)
 

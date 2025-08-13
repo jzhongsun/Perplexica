@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Annotated, List, Optional
 from datetime import datetime, timedelta
 
+from novas_mcp.utils import format_pd_dataframe_to_markdown
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 import logging
 import pandas as pd
@@ -66,25 +67,59 @@ async def _retrieve_company_news(
     return RetrieveCompanyNewsResponse(news=["Financial news"])
 
 
-class RetrieveStockPriceDataRequest(BaseModel):
+class RetrieveStockKlineDataRequest(BaseModel):
+    market_code: MarketCode = Annotated[
+        MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")
+    ]
     symbol: str
+    interval: str
     start_date: str
     end_date: str = Field(
         default=datetime.now().isoformat(),
-        description="The end date of the price data to retrieve, format: YYYY-mm-dd",
+        description="The end date of the kline data to retrieve, format: YYYY-mm-dd",
     )
 
 
-class RetrieveStockPriceDataResponse(BaseModel):
-    price: float
+class RetrieveStockKlineDataResponse(BaseModel):
+    success: bool = Field(description="Whether the request is successful")
+    error_message: Optional[str] = Field(default=None, description="The error message if the request is not successful")
+    market_code: MarketCode = Field(description="The market code of provided stock symbol")
+    symbol: str = Field(description="The symbol of the stock to retrieve kline data for")
+    interval: str = Field(description="The interval of the kline data to retrieve, available values are 'daily', 'weekly' or 'monthly'")
+    start_date: str = Field(description="The start date of the kline data to retrieve, format: YYYY-mm-dd")
+    end_date: str = Field(description="The end date of the kline data to retrieve, format: YYYY-mm-dd")
+    kline_markdown_table: str = Field(description="The markdown table of the kline data")
 
-
-async def _retrieve_stock_price_data(
-    request: RetrieveStockPriceDataRequest,
-) -> RetrieveStockPriceDataResponse:
-    logger.info(f"Retrieving stock price data for {request}")
-    return RetrieveStockPriceDataResponse(price=100)
-
+async def _retrieve_stock_kline_data(
+    request: RetrieveStockKlineDataRequest,
+) -> RetrieveStockKlineDataResponse:
+    logger.info(f"Retrieving stock kline data for {request}")
+    from novas_mcp.trading.trading_em_stock import em_retrieve_stock_kline_data
+    try:
+        kline_data = await em_retrieve_stock_kline_data(
+            request.market_code,
+            request.symbol,
+            request.interval,
+            request.start_date,
+            request.end_date,
+        )
+        kline_markdown_table = format_pd_dataframe_to_markdown(kline_data, include_index=True, transpose=False)
+        return RetrieveStockKlineDataResponse(success=True, 
+                                            market_code=request.market_code, 
+                                            symbol=request.symbol, 
+                                            interval=request.interval, 
+                                            start_date=request.start_date, 
+                                            end_date=request.end_date, 
+                                            kline_markdown_table=kline_markdown_table)
+    except Exception as e:
+        logger.error(f"Error retrieving stock kline data: {e}")
+        return RetrieveStockKlineDataResponse(success=False, error_message=str(e), 
+                                              market_code=request.market_code, 
+                                              symbol=request.symbol, 
+                                              interval=request.interval, 
+                                              start_date=request.start_date, 
+                                              end_date=request.end_date, 
+                                              kline_markdown_table="")
 
 class RetrieveStockStatsIndicatorsReportRequest(BaseModel):
     market_code: MarketCode = Annotated[
