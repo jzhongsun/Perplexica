@@ -2,7 +2,7 @@ from typing import Annotated
 from datetime import datetime
 
 from .trading_core import (
-    MarketType,
+    MarketCode,
     ReportDateType,
     RetrieveCompanyFundamentalsRequest,
     RetrieveCompanyFundamentalsResponse,
@@ -50,17 +50,17 @@ def setup_trading_mcp_server(mcp: FastMCP):
     )
     async def retrieve_company_news(
         company_name: Annotated[
-            str, "The name of the company to retrieve financial news for"
+            str, Field(description="The name of the company to retrieve financial news for")
         ],
         language: Annotated[
-            str, "The language of the news to retrieve, e.g. en, fr, de, etc."
+            str, Field(description="The language of the news to retrieve, e.g. en, fr, de, etc.")
         ] = "en",
-        num_results: Annotated[int, "The number of results to retrieve"] = 10,
+        num_results: Annotated[int, Field(description="The number of results to retrieve")] = 10,
         start_date: Annotated[
-            str, "The start date of the news to retrieve, format: YYYY-mm-dd"
+            str, Field(description="The start date of the news to retrieve, format: YYYY-mm-dd")
         ] = datetime.now().isoformat(),
         end_date: Annotated[
-            str, "The end date of the news to retrieve, format: YYYY-mm-dd"
+            str, Field(description="The end date of the news to retrieve, format: YYYY-mm-dd")
         ] = datetime.now().isoformat(),
     ) -> RetrieveCompanyNewsResponse:
         request = RetrieveCompanyNewsRequest(
@@ -72,17 +72,18 @@ def setup_trading_mcp_server(mcp: FastMCP):
         )
         return await _retrieve_company_news(request)
 
-    @mcp.tool(
-        name="retrieve_stock_price_data",
-        description="Retrieve stock price data for a company",
-    )
+    # @mcp.tool(
+    #     name="retrieve_stock_price_data",
+    #     description="Retrieve stock price data for a company",
+    # )
     async def retrieve_stock_price_data(
-        symbol: Annotated[str, "The symbol of the stock to retrieve price data for"],
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol")],
+        symbol: Annotated[str, Field(description="The symbol of the stock to retrieve price data for")],
         start_date: Annotated[
-            str, "The start date of the price data to retrieve, format: YYYY-mm-dd"
+            str, Field(description="The start date of the price data to retrieve, format: YYYY-mm-dd")
         ] = datetime.now().isoformat(),
         end_date: Annotated[
-            str, "The end date of the price data to retrieve, format: YYYY-mm-dd"
+            str, Field(description="The end date of the price data to retrieve, format: YYYY-mm-dd")
         ] = datetime.now().isoformat(),
     ) -> RetrieveStockPriceDataResponse:
         logger.info(
@@ -100,30 +101,30 @@ def setup_trading_mcp_server(mcp: FastMCP):
         description="Retrieve stock stats indicators report for a company",
     )
     async def retrieve_stockstats_indicators_report(
-        market_type: Annotated[MarketType, "The market type of the stock symbol"],
-        symbol: Annotated[str, "The symbol of the stock to retrieve price data for"],
-        report_period_type: Annotated[ReportDateType, "The type of the report to retrieve, such as 'quarterly', 'yearly' or 'report_period'"],
-        look_back_years: Annotated[int, "how many years to look back, default is 3"] = Field(default=3, description="how many years to look back, default is 3"),
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
+        symbol: Annotated[str, Field(description="The symbol of the stock to retrieve price data for")],
+        indicators: Annotated[list[str], Field(description="The indicators to retrieve, only support values: 'close_50_sma', 'close_200_sma', 'close_10_ema', 'macd', 'macds', 'macdh', 'rsi', 'boll', 'boll_ub', 'boll_lb', 'atr', 'vwma', 'mfi'")],
+        look_back_days: Annotated[int, Field(description="how many days to look back, default is 180")] = Field(default=180, description="how many days to look back, default is 180"),
     ) -> RetrieveStockStatsIndicatorsReportResponse:
         logger.info(f"Retrieving stock stats indicators report for {symbol}")
         request = RetrieveStockStatsIndicatorsReportRequest(
-            market_type=market_type,
+            market_code=market_code,
             symbol=symbol,
-            report_period_type=report_period_type,
-            look_back_years=look_back_years,
+            indicators=indicators,
+            look_back_days=look_back_days,
         )
         return await _retrieve_stock_stats_indicators_report(request)
 
-    @mcp.tool(
-        name="retrieve_company_insider_sentiment",
-        description="Retrieve company insider sentiment for a company",
-    )
+    # @mcp.tool(
+    #     name="retrieve_company_insider_sentiment",
+    #     description="Retrieve company insider sentiment for a company",
+    # )
     async def retrieve_company_insider_sentiment(
         symbol: Annotated[
-            str, "The symbol of the stock to retrieve insider sentiment for"
+            str, Field(description="The symbol of the stock to retrieve insider sentiment for")
         ],
         current_date: Annotated[
-            str, "The current trading date you are trading on, YYYY-mm-dd"
+            str, Field(description="The current trading date you are trading on, YYYY-mm-dd")
         ],
     ) -> RetrieveCompanyInsiderSentimentResponse:
         logger.info(f"Retrieving company insider sentiment for {symbol}")
@@ -133,16 +134,16 @@ def setup_trading_mcp_server(mcp: FastMCP):
         )
         return await _retrieve_company_insider_sentiment(request)
 
-    @mcp.tool(
-        name="retrieve_company_insider_transactions",
-        description="Retrieve company insider transactions for a company",
-    )
+    # @mcp.tool(
+    #     name="retrieve_company_insider_transactions",
+    #     description="Retrieve company insider transactions for a company",
+    # )
     async def retrieve_company_insider_transactions(
         symbol: Annotated[
-            str, "The symbol of the stock to retrieve insider transactions for"
+            str, Field(description="The symbol of the stock to retrieve insider transactions for")
         ],
         current_date: Annotated[
-            str, "The current trading date you are trading on, YYYY-mm-dd"
+            str, Field(description="The current trading date you are trading on, YYYY-mm-dd")
         ],
     ) -> RetrieveCompanyInsiderTransactionsResponse:
         logger.info(f"Retrieving company insider transactions for {symbol}")
@@ -157,15 +158,19 @@ def setup_trading_mcp_server(mcp: FastMCP):
         description="Retrieve company balance sheet for a company",
     )
     async def retrieve_financial_balance_sheet(
-        symbol: Annotated[str, "The symbol of the stock to retrieve balance sheet for"],
-        current_date: Annotated[
-            str, "The current trading date you are trading on, YYYY-mm-dd"
-        ],
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
+        symbol: Annotated[str, Field(description="The symbol of the stock to retrieve balance sheet for")],
+        report_date_type: Annotated[ReportDateType, Field(description="The type of the cash flow statement to retrieve, available values are 'by_period' or 'annual'")],
+        include_yoy: Annotated[bool, Field(description="Whether to include year-over-year (YOY) indicators, default is False")] = False,
+        look_back_years: Annotated[int, Field(description="The number of years to look back for the cash flow statement, default is 2")] = 2,
     ) -> RetrieveCompanyBalanceSheetResponse:
         logger.info(f"Retrieving company balance sheet for {symbol}")
         request = RetrieveCompanyBalanceSheetRequest(
+            market_code=market_code,
             symbol=symbol,
-            current_date=current_date,
+            report_date_type=report_date_type,
+            include_yoy=include_yoy,
+            look_back_years=look_back_years,
         )
         return await _retrieve_company_balance_sheet(request)
 
@@ -174,17 +179,23 @@ def setup_trading_mcp_server(mcp: FastMCP):
         description="Retrieve company financial income statement for a company",
     )
     async def retrieve_financial_income_statement(
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
         symbol: Annotated[
-            str, "The symbol of the stock to retrieve income statement for"
+            str, Field(description="The symbol of the stock to retrieve income statement for")
         ],
-        current_date: Annotated[
-            str, "The current trading date you are trading on, YYYY-mm-dd"
-        ],
+        report_date_type: Annotated[ReportDateType, Field(description="The type of the cash flow statement to retrieve, available values are 'by_period', 'quarterly' or 'annual'")],
+        include_yoy: Annotated[bool, Field(description="Whether to include year-over-year (YOY) indicators, default is False")],
+        include_qoq: Annotated[bool, Field(description="Whether to include quarter-over-quarter (QOQ) indicators, default is False")],
+        look_back_years: Annotated[int, Field(description="The number of years to look back for the cash flow statement, default is 5")],
     ) -> RetrieveCompanyIncomeStatementResponse:
         logger.info(f"Retrieving company income statement for {symbol}")
         request = RetrieveCompanyIncomeStatementRequest(
+            market_code=market_code,
             symbol=symbol,
-            current_date=current_date,
+            report_date_type=report_date_type,
+            include_yoy=include_yoy,
+            include_qoq=include_qoq,
+            look_back_years=look_back_years,
         )
         return await _retrieve_company_income_statement(request)
 
@@ -193,17 +204,23 @@ def setup_trading_mcp_server(mcp: FastMCP):
         description="Retrieve company financial cash flow statement for a company",
     )
     async def retrieve_financial_cash_flow_statement(
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
         symbol: Annotated[
-            str, "The symbol of the stock to retrieve cash flow statement for"
+            str, Field(description="The symbol of the stock to retrieve cash flow statement for")
         ],
-        current_date: Annotated[
-            str, "The current trading date you are trading on, YYYY-mm-dd"
-        ],
+        report_date_type: Annotated[ReportDateType, Field(description="The type of the cash flow statement to retrieve, available values are 'by_period', 'quarterly' or 'annual'")],
+        include_yoy: Annotated[bool, Field(description="Whether to include year-over-year (YOY) indicators, only available when report_date_type is 'by_period' or 'annual', default is False")] = False,
+        include_qoq: Annotated[bool, Field(description="Whether to include quarter-over-quarter (QOQ) indicators, only available when report_date_type is 'quarterly', default is False")] = False,
+        look_back_years: Annotated[int, Field(description="The number of years to look back for the cash flow statement, default is 3")] = 3,
     ) -> RetrieveCompanyCashFlowStatementResponse:
         logger.info(f"Retrieving company cash flow statement for {symbol}")
         request = RetrieveCompanyCashFlowStatementRequest(
+            market_code=market_code,
             symbol=symbol,
-            date=current_date,
+            report_date_type=report_date_type,
+            include_yoy=include_yoy,
+            include_qoq=include_qoq,
+            look_back_years=look_back_years,
         )
         return await _retrieve_company_cash_flow_statement(request)
     
@@ -212,30 +229,30 @@ def setup_trading_mcp_server(mcp: FastMCP):
         description="Retrieve company financial analysis indicators for a company",
     )
     async def retrieve_financial_analysis_indicators(
-        market_type: Annotated[MarketType, "The market type of the stock symbol"],
-        symbol: Annotated[str, "The symbol of the stock to retrieve financial analysis indicators for"],
-        report_period_type: Annotated[ReportDateType, "The type of the financial analysis indicators to retrieve, such as 'quarterly', 'yearly' or 'report_period'"],
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
+        symbol: Annotated[str, Field(description="The symbol of the stock to retrieve financial analysis indicators for")],
+        report_date_type: Annotated[ReportDateType, Field(description="The type of the financial analysis indicators to retrieve, available values are 'by_period', 'quarterly' or 'annual'")],
         look_back_years: Annotated[
-            int, "The number of years to look back for the financial analysis indicators, default is 2"
-        ],
+            int, Field(description="The number of years to look back for the financial analysis indicators, default is 2")
+        ] = 2,
     ) -> RetrieveCompanyFinancialAnalysisIndicatorsResponse:
         logger.info(f"Retrieving company financial analysis indicators for {symbol}")
         request = RetrieveCompanyFinancialAnalysisIndicatorsRequest(
-            market_type=market_type,
+            market_code=market_code,
             symbol=symbol,
-            report_period_type=report_period_type,
+            report_date_type=report_date_type,
             look_back_years=look_back_years,
         )
         return await _retrieve_company_financial_analysis_indicators(request)
 
-    @mcp.tool(
-        name="retrieve_company_fundamentals",
-        description="Retrieve company fundamentals for a company",
-    )
+    # @mcp.tool(
+    #     name="retrieve_company_fundamentals",
+    #     description="Retrieve company fundamentals for a company",
+    # )
     async def retrieve_company_fundamentals(
-        symbol: Annotated[str, "The symbol of the stock to retrieve fundamentals for"],
+        symbol: Annotated[str, Field(description="The symbol of the stock to retrieve fundamentals for")],
         current_date: Annotated[
-            str, "The current trading date you are trading on, YYYY-mm-dd"
+            str, Field(description="The current trading date you are trading on, YYYY-mm-dd")
         ],
     ) -> RetrieveCompanyFundamentalsResponse:
         logger.info(f"Retrieving company fundamentals for {symbol}")

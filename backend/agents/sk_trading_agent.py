@@ -1039,13 +1039,15 @@ async def main():
     dotenv.load_dotenv()
 
     config = FinancialTradingAgentConfig()
+    # config.selected_analysts = ["market", "social", "news", "fundamentals"]
+    config.selected_analysts = ["fundamentals"]
     config.deep_think_model = "openai:gpt-4.1"
     config.quick_think_model = "openai:gpt-4.1"
     agent = FinancialTradingAgent(config)
     last_message_id = None
     async for response in agent.invoke_stream(
         messages=[
-            f'```json\n{{"company_of_interest": "MICROSOFT", "trade_date": "2025-08-01"}}\n```'
+            f'```json\n{{"company_of_interest": "来伊份", "market_code": "SH", "symbol": "603777", "trade_date": "2025-08-01"}}\n```'
         ]
     ):
         # if last_message_id != response.message.id:
