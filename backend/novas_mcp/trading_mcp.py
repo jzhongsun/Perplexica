@@ -79,16 +79,16 @@ def setup_trading_mcp_server(mcp: FastMCP):
     async def retrieve_stock_historical_data(
         market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
         symbol: Annotated[str, Field(description="The ticker symbol of the stock to retrieve price data for")],
-        interval: Annotated[str, Field(description="The interval of the kline data to retrieve, available values are 'daily', 'weekly' or 'monthly'")],
+        interval: Annotated[str, Field(description="The interval of the historical data to retrieve, available values are 'daily', 'weekly' or 'monthly'")],
         start_date: Annotated[
-            str, Field(description="The start date of the kline data to retrieve, format: YYYY-mm-dd")
+            str, Field(description="The start date of the historical data to retrieve, format: YYYY-mm-dd")
         ] = datetime.now().isoformat(),
         end_date: Annotated[
-            str, Field(description="The end date of the kline data to retrieve, format: YYYY-mm-dd")
+            str, Field(description="The end date of the historical data to retrieve, format: YYYY-mm-dd")
         ] = datetime.now().isoformat(),
     ) -> RetrieveStockKlineDataResponse:
         logger.info(
-            f"Retrieving stock kline data for {market_code.value}{symbol} from {start_date} to {end_date}"
+            f"Retrieving stock historical data for {market_code.value}{symbol} from {start_date} to {end_date}"
         )
         request = RetrieveStockKlineDataRequest(
             market_code=market_code,
