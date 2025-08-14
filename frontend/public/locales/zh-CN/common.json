@@ -1,5 +1,5 @@
 {
-  "welcome": "欢迎使用 Danus",
+  "welcome": "欢迎使用 Novas",
   "language": "语言",
   "switchLanguage": "切换语言",
   "english": "英文",
@@ -7,8 +7,8 @@
   "hongKong": "繁体中文（香港）",
   
   "metadata": {
-    "title": "聊天 - Danus",
-    "description": "与互联网对话，与 Danus 聊天。"
+    "title": "聊天 - Novas",
+    "description": "与互联网对话，与 Novas 聊天。"
   },
 
   "chat": {

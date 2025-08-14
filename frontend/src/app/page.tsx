@@ -41,7 +41,7 @@ const Home = () => {
               <Sparkles className="w-5 h-5 text-yellow-500" />
             </div>
           }
-          title="Danus - Chat with the internet"
+          title="Novas - Professional deep research"
         >
           <EmptyChat
             sendMessage={handleSendMessage}

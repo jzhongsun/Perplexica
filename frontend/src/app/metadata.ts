@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Chat - Danus',
-  description: 'Chat with the internet, chat with Danus.',
+  title: 'Novas - Professional deep research',
+  description: 'Novas is an AI powered chatbot that is connected to the internet and can do deep research.',
 }; 

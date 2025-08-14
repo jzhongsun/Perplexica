@@ -1,5 +1,5 @@
 {
-  "name": "novas-ai-frontend",
+  "name": "novas-frontend",
   "version": "1.11.0-rc1",
   "license": "MIT",
   "author": "ItzCrazyKns",
@@ -34,7 +34,7 @@
     "next": "^15.4.6",
     "next-themes": "^0.3.0",
     "npm": "^11.5.2",
-    "novas-ai-frontend": "link:",
+    "novas-frontend": "link:",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^15.6.1",

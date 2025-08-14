@@ -59,14 +59,12 @@ logger = logging.getLogger(__name__)
 
 A2A_BASE_URL = os.getenv("A2A_BASE_URL", "http://localhost:10010")
 A2A_BASE_AGENT_URL = os.getenv(
-    "A2A_BASE_AGENT_URL", "http://localhost:10010/web_search/"
+    "A2A_BASE_AGENT_URL", A2A_BASE_URL
 )
 
 FOCUS_MODE_2_AGENT_URL = {
+    "stock_symbol_research": f"{A2A_BASE_AGENT_URL}/stock_symbol_research/",
     "web_search": f"{A2A_BASE_AGENT_URL}/web_search/",
-    "web_search_and_answer": f"{A2A_BASE_AGENT_URL}/web_search_and_answer/",
-    "web_search_and_answer_with_files": f"{A2A_BASE_AGENT_URL}/web_search_and_answer_with_files/",
-    "web_search_and_answer_with_files_and_context": f"{A2A_BASE_AGENT_URL}/web_search_and_answer_with_files_and_context/",
 }
 
 CONTEXTUAL_QUERY_PROMPT_TEMPLATE = """
@@ -125,15 +123,12 @@ class ChatService:
         return await service.__aenter__()
 
     async def resolve_agent_client(self, options: Dict[str, Any]) -> A2AClient:
+        logger.info(f"resolve_agent_client - options: {options}, FOCUS_MODE_2_AGENT_URL: {FOCUS_MODE_2_AGENT_URL}")
+        a2a_url = FOCUS_MODE_2_AGENT_URL[options["focusMode"]] if options and "focusMode" in options and options["focusMode"] in FOCUS_MODE_2_AGENT_URL else A2A_BASE_AGENT_URL
+        logger.info(f"resolved: A2A: options: {options} URL: {a2a_url}")
         a2a_client = A2AClient(
             httpx_client=httpx.AsyncClient(),
-            url=(
-                FOCUS_MODE_2_AGENT_URL[options["focus_mode"]]
-                if options
-                and "focus_mode" in options
-                and options["focus_mode"] in FOCUS_MODE_2_AGENT_URL
-                else A2A_BASE_AGENT_URL
-            ),
+            url=a2a_url,
         )
         return a2a_client
 
@@ -308,6 +303,8 @@ class ChatService:
                             if part.root.metadata.get("inner_part_type") == "tool_call":
                                 tool_call_data = part.root.data
                                 tool_call_id = tool_call_data.get("tool_call_id")
+                                if tool_call_id is None:
+                                    tool_call_id = tool_call_data.get("id")
                                 tool_name = tool_call_data.get("tool_name")
                                 arguments = tool_call_data.get("arguments")
                                 yield ToolInputAvailableUIMessageStreamPart(
@@ -333,6 +330,8 @@ class ChatService:
                             ):
                                 tool_result_data = part.root.data
                                 tool_call_id = tool_result_data.get("tool_call_id")
+                                if tool_call_id is None:
+                                    tool_call_id = tool_result_data.get("id")
                                 tool_name = tool_result_data.get("tool_name")
                                 result = tool_result_data.get("result")
                                 yield ToolOutputAvailableUIMessageStreamPart(

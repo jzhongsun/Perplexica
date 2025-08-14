@@ -13,10 +13,16 @@ import {
   PopoverPanel,
   Transition,
 } from '@headlessui/react';
-import { SiReddit, SiYoutube } from '@icons-pack/react-simple-icons';
+import { SiReddit, SiYoutube, SiAcademia } from '@icons-pack/react-simple-icons';
 import { Fragment } from 'react';
 
 const focusModes = [
+  {
+    key: "stock_symbol_research",
+    title: "个股研究",
+    description: "包括上海证券交易所（SSE）和深圳证券交易所（SZSE）。",
+    icon: <SiAcademia size={20} />,
+  },
   {
     key: 'webSearch',
     title: 'All',
@@ -29,30 +35,30 @@ const focusModes = [
     description: 'Search in published academic papers',
     icon: <SwatchBook size={20} />,
   },
-  {
-    key: 'writingAssistant',
-    title: 'Writing',
-    description: 'Chat without searching the web',
-    icon: <Pencil size={16} />,
-  },
-  {
-    key: 'wolframAlphaSearch',
-    title: 'Wolfram Alpha',
-    description: 'Computational knowledge engine',
-    icon: <BadgePercent size={20} />,
-  },
-  {
-    key: 'youtubeSearch',
-    title: 'Youtube',
-    description: 'Search and watch videos',
-    icon: <SiYoutube className="h-5 w-auto mr-0.5" />,
-  },
-  {
-    key: 'redditSearch',
-    title: 'Reddit',
-    description: 'Search for discussions and opinions',
-    icon: <SiReddit className="h-5 w-auto mr-0.5" />,
-  },
+  // {
+  //   key: 'writingAssistant',
+  //   title: 'Writing',
+  //   description: 'Chat without searching the web',
+  //   icon: <Pencil size={16} />,
+  // },
+  // {
+  //   key: 'wolframAlphaSearch',
+  //   title: 'Wolfram Alpha',
+  //   description: 'Computational knowledge engine',
+  //   icon: <BadgePercent size={20} />,
+  // },
+  // {
+  //   key: 'youtubeSearch',
+  //   title: 'Youtube',
+  //   description: 'Search and watch videos',
+  //   icon: <SiYoutube className="h-5 w-auto mr-0.5" />,
+  // },
+  // {
+  //   key: 'redditSearch',
+  //   title: 'Reddit',
+  //   description: 'Search for discussions and opinions',
+  //   icon: <SiReddit className="h-5 w-auto mr-0.5" />,
+  // },
 ];
 
 const Focus = ({

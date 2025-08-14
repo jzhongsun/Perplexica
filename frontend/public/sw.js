@@ -1,4 +1,4 @@
-const CACHE_NAME = 'danus-cache-v1';
+const CACHE_NAME = 'novas-cache-v1';
 const OFFLINE_URL = '/offline.html';
 
 const STATIC_ASSETS = [

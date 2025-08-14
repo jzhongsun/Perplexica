@@ -1,5 +1,5 @@
 {
-  "welcome": "Welcome to Danus",
+  "welcome": "Welcome to Novas",
   "language": "Language",
   "switchLanguage": "Switch Language",
   "english": "English",
@@ -7,13 +7,13 @@
   "hongKong": "Traditional Chinese (Hong Kong)",
   
   "metadata": {
-    "title": "Chat - Danus",
-    "description": "Chat with the internet, chat with Danus."
+    "title": "Chat - Novas",
+    "description": "Chat with the professional deep research by Novas."
   },
 
   "chat": {
     "emptyState": {
-      "title": "Research begins here.",
+      "title": "Professional deep research begins here.",
       "placeholder": "Ask me anything...",
       "send": "Send"
     },

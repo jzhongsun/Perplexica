@@ -52,7 +52,7 @@ const Chat = ({
 
     if (messages.length === 1) {
       const message = convertUIMessageToMessage(messages[0]);
-      document.title = `${message.content.substring(0, 30)} - Danus`;
+      document.title = `${message.content.substring(0, 30)} - Novas`;
     }
 
     if (messages[messages.length - 1]?.role == 'user') {

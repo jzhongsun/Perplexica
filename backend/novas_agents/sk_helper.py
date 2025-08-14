@@ -47,7 +47,7 @@ def sk_item_to_a2a_part(item: CMC_ITEM_TYPES) -> Part:
             root=DataPart(
                 data={
                     "id": item.id,
-                    "tool_call_id": item.call_id,
+                    "tool_call_id": item.call_id if item.call_id else item.id,
                     "tool_name": item.name,
                     "arguments": arguments,
                 },
@@ -59,7 +59,7 @@ def sk_item_to_a2a_part(item: CMC_ITEM_TYPES) -> Part:
             root=DataPart(
                 data={
                     "id": item.id,
-                    "tool_call_id": item.call_id,
+                    "tool_call_id": item.call_id if item.call_id else item.id,
                     "tool_name": item.name,
                     "result": item.result,
                 },

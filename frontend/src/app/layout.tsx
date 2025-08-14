@@ -19,14 +19,14 @@ const montserrat = Montserrat({
 });
 
 const metadata: Metadata = {
-  title: 'Danus - Chat with the internet',
-  description: 'Danus is an AI powered chatbot that is connected to the internet.',
+  title: 'Novas - Professional deep research',
+  description: 'Novas is an AI powered chatbot that is connected to the internet and can do deep research .',
   manifest: '/manifest.json',
   themeColor: '#000000',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Danus',
+    title: 'Novas',
   },
   viewport: {
     width: 'device-width',
@@ -46,14 +46,14 @@ const metadata: Metadata = {
   },
   openGraph: {
     type: 'website',
-    title: 'Danus - Chat with the internet',
-    description: 'Danus is an AI powered chatbot that is connected to the internet.',
-    siteName: 'Danus',
+    title: 'Novas - Professional deep research',
+    description: 'Novas is an AI powered chatbot that is connected to the internet and can do deep research.',
+    siteName: 'Novas',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Danus - Chat with the internet',
-    description: 'Danus is an AI powered chatbot that is connected to the internet.',
+    title: 'Novas - Professional deep research',
+    description: 'Novas is an AI powered chatbot that is connected to the internet and can do deep research.',
   },
 };
 

@@ -66,6 +66,20 @@ def create_sk_agent_meta_search(agent_name: str, agent_card: AgentCard, agent_co
         config=config
     )
 
+def create_sk_agent_stock_symbol_research(agent_name: str, agent_card: AgentCard, agent_config: Dict[str, Any] = {}) -> Agent:
+    from .sk_trading_agent import FinancialTradingAgent, FinancialTradingAgentConfig
+    config = FinancialTradingAgentConfig(
+        deep_think_model=agent_config.get("deep_think_model", "openai:gpt-4.1"),
+        quick_think_model=agent_config.get("quick_think_model", "openai:gpt-4.1"),
+        mcp_server_url=agent_config.get("mcp_server_url", "http://localhost:9000/trading/sse"),
+        max_debate_rounds=agent_config.get("max_debate_rounds", 1),
+        max_risk_discuss_rounds=agent_config.get("max_risk_discuss_rounds", 1),
+        max_recur_limit=agent_config.get("max_recur_limit", 100),
+        selected_analysts=agent_config.get("selected_analysts", ["market", "news", "fundamentals"]),
+        analyst_functions=agent_config.get("analyst_functions", {}),
+        max_concurrent_analysts_tool_calls=agent_config.get("max_concurrent_analysts_tool_calls", 5),
+    )
+    return FinancialTradingAgent(config)
 def build_agent_card(agent_card_config: Dict[str, Any]) -> AgentCard:
     agent_card_skills_config: List[Dict[str, Any]] = (
         agent_card_config["skills"] if "skills" in agent_card_config else []
@@ -108,6 +122,7 @@ def setup_sk_agent_from_config(app: FastAPI, agent_name: str, agent_config: Dict
     
     agent_card_config = agent_config["agent_card"]
     agent_card = build_agent_card(agent_card_config)
+    logger.info(f"Building agent card: {agent_card}")
     
     inner_agent_config = agent_config["agent_config"] if "agent_config" in agent_config else {}
     setup_sk_agent_from_card(app, agent_name, agent_card, inner_agent_config, agent_builder)
@@ -122,3 +137,7 @@ def setup_sk_agents(app: FastAPI):
         if "meta_search_agents" in agents_config:
             for agent_name, agent_config in agents_config["meta_search_agents"].items():
                 setup_sk_agent_from_config(app, agent_name, agent_config, create_sk_agent_meta_search)
+        if "trading_agents" in agents_config:
+            for agent_name, agent_config in agents_config["trading_agents"].items():
+                setup_sk_agent_from_config(app, agent_name, agent_config, create_sk_agent_stock_symbol_research)
+    

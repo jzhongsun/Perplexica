@@ -1,3 +1,33 @@
+trading_agents:
+  stock_symbol_research:
+    agent_card:
+      name: stock_symbol_research
+      description: A stock symbol research agent
+      version: 1.0.0
+    agent_config:
+      deep_think_model: openai:gpt-4.1
+      quick_think_model: openai:gpt-4.1
+      mcp_server_url: http://localhost:9000/trading/sse
+      max_debate_rounds: 1
+      max_risk_discuss_rounds: 1
+      max_recur_limit: 100
+      selected_analysts: ["market", "news", "fundamentals"]
+      analyst_functions:
+        market:
+            included_functions: 
+              - retrieve_stockstats_indicators_report
+              - retrieve_stock_historical_data
+        news:
+            included_functions:
+              - retrieve_company_news
+              - retrieve_company_research_report
+        fundamentals:
+            included_functions:
+              - retrieve_financial_cash_flow_statement
+              - retrieve_financial_income_statement
+              - retrieve_financial_balance_sheet
+              - retrieve_financial_analysis_indicators
+            
 
 chat_completion_agents:
   sk_agent:
