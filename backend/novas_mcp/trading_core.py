@@ -13,12 +13,18 @@ logger.setLevel(logging.INFO)
 
 class TradingReportResultPack(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    
-    dataframe: Optional[pd.DataFrame] = Field(default=None, description="The dataframe of the report")
-    markdown_table: Optional[str] = Field(default=None, description="The markdown of the report")
-    json_dict: Optional[dict] = Field(default=None, description="The json of the report")
-    
-    @field_validator('dataframe')
+
+    dataframe: Optional[pd.DataFrame] = Field(
+        default=None, description="The dataframe of the report"
+    )
+    markdown_table: Optional[str] = Field(
+        default=None, description="The markdown of the report"
+    )
+    json_dict: Optional[dict] = Field(
+        default=None, description="The json of the report"
+    )
+
+    @field_validator("dataframe")
     @classmethod
     def validate_dataframe(cls, v):
         if v is None:
@@ -27,49 +33,91 @@ class TradingReportResultPack(BaseModel):
             raise ValueError("dataframe must be a pandas DataFrame")
         return v
 
+
 class TradingReportResult(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    reports: dict[str, TradingReportResultPack] = Field(description="A list of indicator names and their reports, each report is a markdown table")
+    reports: dict[str, TradingReportResultPack] = Field(
+        description="A list of indicator names and their reports, each report is a markdown table"
+    )
+
 
 class ReportDateType(str, Enum):
     BY_PERIOD = "by_period"
     QUARTERLY = "quarterly"
     ANNUAL = "annual"
-    
+
+
 class MarketCode(str, Enum):
     SH = "SH"  # 上海证券交易所
     SZ = "SZ"  # 深圳证券交易所
     HK = "HK"  # 香港证券交易所
     US = "US"  # 美国股票
 
+
 class RetrieveCompanyNewsRequest(BaseModel):
     company_name: str
-    language: str = "en"
+    symbol: str
     num_results: int = 10
-    start_date: Optional[str] = Field(
-        default=datetime.now().isoformat(),
-        description="The start date of the news to retrieve, format: YYYY-mm-dd",
-    )
-    end_date: Optional[str] = Field(
-        default=datetime.now().isoformat(),
-        description="The end date of the news to retrieve, format: YYYY-mm-dd",
-    )
 
 
 class RetrieveCompanyNewsResponse(BaseModel):
-    news: List[str]
+    success: bool = Field(description="Whether the request is successful")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
+    company_name: str = Field(description="The name of the company")
+    symbol: str = Field(
+        description="The symbol of the stock to retrieve financial news for"
+    )
+    num_results: int = Field(description="The number of results to retrieve")
+    news: list[dict[str, str]] = Field(description="The news of the company")
 
 
 async def _retrieve_company_news(
     request: RetrieveCompanyNewsRequest,
 ) -> RetrieveCompanyNewsResponse:
     logger.info(f"Retrieving financial news for {request}")
-    return RetrieveCompanyNewsResponse(news=["Financial news"])
+    from novas_mcp.trading.trading_em_sentiment import em_retrieve_company_news
+
+    try:
+        results = await em_retrieve_company_news(
+            request.company_name, request.symbol, request.num_results
+        )
+        return RetrieveCompanyNewsResponse(
+            success=True,
+            company_name=request.company_name,
+            symbol=request.symbol,
+            num_results=request.num_results,
+            news=[
+                {
+                    "title": r.title,
+                    "url": r.url,
+                    "date": r.publish_date,
+                    "source": r.source,
+                    "snippet": r.snippet,
+                    "content": r.content_markdown,
+                }
+                for r in results
+            ],
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving company news: {e}")
+        return RetrieveCompanyNewsResponse(
+            success=False,
+            error_message=str(e),
+            company_name=request.company_name,
+            symbol=request.symbol,
+            num_results=request.num_results,
+            news=[],
+        )
 
 
 class RetrieveStockKlineDataRequest(BaseModel):
     market_code: MarketCode = Annotated[
-        MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")
+        MarketCode,
+        Field(
+            description="The market code of the stock symbol, available values are 'SH' and 'SZ'"
+        ),
     ]
     symbol: str
     interval: str
@@ -82,19 +130,35 @@ class RetrieveStockKlineDataRequest(BaseModel):
 
 class RetrieveStockKlineDataResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    error_message: Optional[str] = Field(default=None, description="The error message if the request is not successful")
-    market_code: MarketCode = Field(description="The market code of provided stock symbol")
-    symbol: str = Field(description="The symbol of the stock to retrieve kline data for")
-    interval: str = Field(description="The interval of the kline data to retrieve, available values are 'daily', 'weekly' or 'monthly'")
-    start_date: str = Field(description="The start date of the kline data to retrieve, format: YYYY-mm-dd")
-    end_date: str = Field(description="The end date of the kline data to retrieve, format: YYYY-mm-dd")
-    kline_markdown_table: str = Field(description="The markdown table of the kline data")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
+    market_code: MarketCode = Field(
+        description="The market code of provided stock symbol"
+    )
+    symbol: str = Field(
+        description="The symbol of the stock to retrieve kline data for"
+    )
+    interval: str = Field(
+        description="The interval of the kline data to retrieve, available values are 'daily', 'weekly' or 'monthly'"
+    )
+    start_date: str = Field(
+        description="The start date of the kline data to retrieve, format: YYYY-mm-dd"
+    )
+    end_date: str = Field(
+        description="The end date of the kline data to retrieve, format: YYYY-mm-dd"
+    )
+    kline_markdown_table: str = Field(
+        description="The markdown table of the kline data"
+    )
+
 
 async def _retrieve_stock_kline_data(
     request: RetrieveStockKlineDataRequest,
 ) -> RetrieveStockKlineDataResponse:
     logger.info(f"Retrieving stock kline data for {request}")
     from novas_mcp.trading.trading_em_stock import em_retrieve_stock_kline_data
+
     try:
         kline_data = await em_retrieve_stock_kline_data(
             request.market_code,
@@ -103,23 +167,31 @@ async def _retrieve_stock_kline_data(
             request.start_date,
             request.end_date,
         )
-        kline_markdown_table = format_pd_dataframe_to_markdown(kline_data, include_index=True, transpose=False)
-        return RetrieveStockKlineDataResponse(success=True, 
-                                            market_code=request.market_code, 
-                                            symbol=request.symbol, 
-                                            interval=request.interval, 
-                                            start_date=request.start_date, 
-                                            end_date=request.end_date, 
-                                            kline_markdown_table=kline_markdown_table)
+        kline_markdown_table = format_pd_dataframe_to_markdown(
+            kline_data, include_index=True, transpose=False
+        )
+        return RetrieveStockKlineDataResponse(
+            success=True,
+            market_code=request.market_code,
+            symbol=request.symbol,
+            interval=request.interval,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            kline_markdown_table=kline_markdown_table,
+        )
     except Exception as e:
         logger.error(f"Error retrieving stock kline data: {e}")
-        return RetrieveStockKlineDataResponse(success=False, error_message=str(e), 
-                                              market_code=request.market_code, 
-                                              symbol=request.symbol, 
-                                              interval=request.interval, 
-                                              start_date=request.start_date, 
-                                              end_date=request.end_date, 
-                                              kline_markdown_table="")
+        return RetrieveStockKlineDataResponse(
+            success=False,
+            error_message=str(e),
+            market_code=request.market_code,
+            symbol=request.symbol,
+            interval=request.interval,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            kline_markdown_table="",
+        )
+
 
 class RetrieveStockStatsIndicatorsReportRequest(BaseModel):
     market_code: MarketCode = Annotated[
@@ -136,12 +208,14 @@ class RetrieveNamedReportItem(BaseModel):
         description="The markdown table of the report data"
     )
 
+
 class RetrieveStockStatsIndicatorsReportItem(BaseModel):
     indicator_name: str = Field(description="The name of the indicator")
     indicator_description: str = Field(description="The description of the indicator")
     indicator_report_markdown_table: str = Field(
         description="The markdown table of the indicator report"
     )
+
 
 class RetrieveStockStatsIndicatorsReportResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
@@ -225,10 +299,10 @@ async def _retrieve_stock_stats_indicators_report(
             "Tips: Use alongside RSI or MACD to confirm signals; divergence between price and MFI can indicate potential reversals."
         ),
     }
-        
+
     logger.info(f"Retrieving stock stats indicators report for {request}")
     from novas_mcp.trading.trading_em_stock import em_retrieve_stock_kline_data
-    
+
     start_date = datetime.now() - timedelta(days=request.look_back_days)
     end_date = datetime.now()
 
@@ -239,38 +313,48 @@ async def _retrieve_stock_stats_indicators_report(
         start_date.strftime("%Y-%m-%d"),
         end_date.strftime("%Y-%m-%d"),
     )
-    columns_mapping = {"date": "日期", "amount": "成交额", "close": "收盘", "high": "最高", "low": "最低", "volume": "成交量"}
+    columns_mapping = {
+        "date": "日期",
+        "amount": "成交额",
+        "close": "收盘",
+        "high": "最高",
+        "low": "最低",
+        "volume": "成交量",
+    }
     from stockstats import wrap
+
     kdf = kline_data.copy()
     for k, v in columns_mapping.items():
         kdf[k] = kdf[v]
     kdf = kdf[columns_mapping.keys()]
     sdf = wrap(kdf)
-    
+
     reports = []
     for indicator in request.indicators:
         if indicator in best_ind_params:
             indicator_values = sdf[indicator]
             reports.append(
-                    RetrieveStockStatsIndicatorsReportItem(
-                        indicator_name=indicator, 
-                        indicator_description=best_ind_params[indicator], 
-                        indicator_report_markdown_table=indicator_values.to_markdown()
-                    )
+                RetrieveStockStatsIndicatorsReportItem(
+                    indicator_name=indicator,
+                    indicator_description=best_ind_params[indicator],
+                    indicator_report_markdown_table=indicator_values.to_markdown(),
+                )
             )
         else:
             logger.warning(f"Indicator {indicator} not found in the data")
             reports.append(
                 RetrieveStockStatsIndicatorsReportItem(
-                    indicator_name=indicator, indicator_description=f"Indicator {indicator} not found in the data", indicator_report_markdown_table=""
+                    indicator_name=indicator,
+                    indicator_description=f"Indicator {indicator} not found in the data",
+                    indicator_report_markdown_table="",
                 )
             )
-    
+
     return RetrieveStockStatsIndicatorsReportResponse(
         success=len(reports) > 0,
         reports=reports,
     )
-    
+
 
 # if __name__ == "__main__":
 #     import asyncio
@@ -280,6 +364,7 @@ async def _retrieve_stock_stats_indicators_report(
 #         indicators=["vwma"],
 #         look_back_days=365,
 #     )))
+
 
 class RetrieveCompanyInsiderSentimentRequest(BaseModel):
     symbol: str
@@ -340,11 +425,21 @@ class RetrieveCompanyBalanceSheetRequest(BaseModel):
 
 class RetrieveCompanyBalanceSheetResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    error_message: Optional[str] = Field(default=None, description="The error message if the request is not successful")
-    market_code: MarketCode = Field(description="The market code of provided stock symbol")
-    symbol: str = Field(description="The symbol of the stock to retrieve cash flow statement for")
-    report_date_type: ReportDateType = Field(description="The type of the cash flow statement to retrieve, such as 'quarterly', 'annual' or 'by_period'")
-    look_back_years: int = Field(description="The number of years to look back for the cash flow statement, default is 5")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
+    market_code: MarketCode = Field(
+        description="The market code of provided stock symbol"
+    )
+    symbol: str = Field(
+        description="The symbol of the stock to retrieve cash flow statement for"
+    )
+    report_date_type: ReportDateType = Field(
+        description="The type of the cash flow statement to retrieve, such as 'quarterly', 'annual' or 'by_period'"
+    )
+    look_back_years: int = Field(
+        description="The number of years to look back for the cash flow statement, default is 5"
+    )
     reports: List[RetrieveNamedReportItem] = Field(
         description="A list of indicator names and their reports, each report is a markdown table"
     )
@@ -354,7 +449,10 @@ async def _retrieve_company_balance_sheet(
     request: RetrieveCompanyBalanceSheetRequest,
 ) -> RetrieveCompanyBalanceSheetResponse:
     logger.info(f"Retrieving company balance sheet for {request}")
-    from novas_mcp.trading.trading_em_financial import em_retrieve_company_financial_analysis_balance_sheet
+    from novas_mcp.trading.trading_em_financial import (
+        em_retrieve_company_financial_analysis_balance_sheet,
+    )
+
     try:
         balance_sheet = await em_retrieve_company_financial_analysis_balance_sheet(
             request.market_code,
@@ -371,8 +469,7 @@ async def _retrieve_company_balance_sheet(
             look_back_years=request.look_back_years,
             reports=[
                 RetrieveNamedReportItem(
-                    name=category_name, 
-                    report_markdown_table=report.markdown_table
+                    name=category_name, report_markdown_table=report.markdown_table
                 )
                 for category_name, report in balance_sheet.items()
             ],
@@ -388,6 +485,7 @@ async def _retrieve_company_balance_sheet(
             look_back_years=request.look_back_years,
             reports=[],
         )
+
 
 class RetrieveCompanyIncomeStatementRequest(BaseModel):
     market_code: MarketCode = Annotated[
@@ -416,30 +514,45 @@ class RetrieveCompanyIncomeStatementRequest(BaseModel):
 
 class RetrieveCompanyIncomeStatementResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    error_message: Optional[str] = Field(default=None, description="The error message if the request is not successful")
-    market_code: MarketCode = Field(description="The market code of provided stock symbol")
-    symbol: str = Field(description="The symbol of the stock to retrieve cash flow statement for")
-    report_date_type: ReportDateType = Field(description="The type of the cash flow statement to retrieve, such as 'quarterly', 'annual' or 'by_period'")
-    look_back_years: int = Field(description="The number of years to look back for the cash flow statement, default is 5")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
+    market_code: MarketCode = Field(
+        description="The market code of provided stock symbol"
+    )
+    symbol: str = Field(
+        description="The symbol of the stock to retrieve cash flow statement for"
+    )
+    report_date_type: ReportDateType = Field(
+        description="The type of the cash flow statement to retrieve, such as 'quarterly', 'annual' or 'by_period'"
+    )
+    look_back_years: int = Field(
+        description="The number of years to look back for the cash flow statement, default is 5"
+    )
     reports: List[RetrieveNamedReportItem] = Field(
         description="A list of indicator names and their reports, each report is a markdown table"
     )
+
 
 async def _retrieve_company_income_statement(
     request: RetrieveCompanyIncomeStatementRequest,
 ) -> RetrieveCompanyIncomeStatementResponse:
     logger.info(f"Retrieving company income statement for {request}")
-    from novas_mcp.trading.trading_em_financial import em_retrieve_company_financial_analysis_income_statement
-    
+    from novas_mcp.trading.trading_em_financial import (
+        em_retrieve_company_financial_analysis_income_statement,
+    )
+
     try:
 
-        income_statement = await em_retrieve_company_financial_analysis_income_statement(
-            request.market_code,
-            request.symbol,
-            request.report_date_type,
-            include_yoy=request.include_yoy,
-            include_qoq=request.include_qoq,
-            look_back_years=request.look_back_years,
+        income_statement = (
+            await em_retrieve_company_financial_analysis_income_statement(
+                request.market_code,
+                request.symbol,
+                request.report_date_type,
+                include_yoy=request.include_yoy,
+                include_qoq=request.include_qoq,
+                look_back_years=request.look_back_years,
+            )
         )
         return RetrieveCompanyIncomeStatementResponse(
             success=True,
@@ -494,11 +607,21 @@ class RetrieveCompanyCashFlowStatementRequest(BaseModel):
 
 class RetrieveCompanyCashFlowStatementResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    error_message: Optional[str] = Field(default=None, description="The error message if the request is not successful")
-    market_code: MarketCode = Field(description="The market code of provided stock symbol")
-    symbol: str = Field(description="The symbol of the stock to retrieve cash flow statement for")
-    report_date_type: ReportDateType = Field(description="The type of the cash flow statement to retrieve, such as 'quarterly', 'annual' or 'by_period'")
-    look_back_years: int = Field(description="The number of years to look back for the cash flow statement, default is 5")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
+    market_code: MarketCode = Field(
+        description="The market code of provided stock symbol"
+    )
+    symbol: str = Field(
+        description="The symbol of the stock to retrieve cash flow statement for"
+    )
+    report_date_type: ReportDateType = Field(
+        description="The type of the cash flow statement to retrieve, such as 'quarterly', 'annual' or 'by_period'"
+    )
+    look_back_years: int = Field(
+        description="The number of years to look back for the cash flow statement, default is 5"
+    )
     reports: List[RetrieveNamedReportItem] = Field(
         description="A list of indicator names and their reports, each report is a markdown table"
     )
@@ -508,16 +631,20 @@ async def _retrieve_company_cash_flow_statement(
     request: RetrieveCompanyCashFlowStatementRequest,
 ) -> RetrieveCompanyCashFlowStatementResponse:
     logger.info(f"Retrieving company cash flow statement for {request}")
-    from novas_mcp.trading.trading_em_financial import em_retrieve_company_financial_analysis_cash_flow_statement
-    
+    from novas_mcp.trading.trading_em_financial import (
+        em_retrieve_company_financial_analysis_cash_flow_statement,
+    )
+
     try:
-        cash_flow_statement = await em_retrieve_company_financial_analysis_cash_flow_statement(
-            request.market_code,
-            request.symbol,
-            request.report_date_type,
-            request.include_yoy,
-            request.include_qoq,
-            request.look_back_years,
+        cash_flow_statement = (
+            await em_retrieve_company_financial_analysis_cash_flow_statement(
+                request.market_code,
+                request.symbol,
+                request.report_date_type,
+                request.include_yoy,
+                request.include_qoq,
+                request.look_back_years,
+            )
         )
         return RetrieveCompanyCashFlowStatementResponse(
             success=True,
@@ -556,7 +683,9 @@ class RetrieveCompanyFinancialAnalysisIndicatorsRequest(BaseModel):
 
 class RetrieveCompanyFinancialAnalysisIndicatorsResponse(BaseModel):
     success: bool = Field(description="Whether the request is successful")
-    error_message: Optional[str] = Field(default=None, description="The error message if the request is not successful")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
     market_code: MarketCode = Field(
         description="The market code of provided stock symbol"
     )
@@ -578,15 +707,17 @@ async def _retrieve_company_financial_analysis_indicators(
     request: RetrieveCompanyFinancialAnalysisIndicatorsRequest,
 ) -> RetrieveCompanyFinancialAnalysisIndicatorsResponse:
     logger.info(f"Retrieving company financial analysis indicators for {request}")
-    from novas_mcp.trading.trading_em_financial import em_retrieve_company_financial_analysis_indicators
-    
+    from novas_mcp.trading.trading_em_financial import (
+        em_retrieve_company_financial_analysis_indicators,
+    )
+
     try:
         reports = await em_retrieve_company_financial_analysis_indicators(
             request.market_code,
             request.symbol,
-                request.report_date_type,
-                request.look_back_years,
-            )
+            request.report_date_type,
+            request.look_back_years,
+        )
         return RetrieveCompanyFinancialAnalysisIndicatorsResponse(
             success=True,
             market_code=request.market_code,
@@ -595,13 +726,12 @@ async def _retrieve_company_financial_analysis_indicators(
             look_back_years=request.look_back_years,
             reports=[
                 RetrieveNamedReportItem(
-                    name=indicator_name, 
-                    report_markdown_table=report.markdown_table
+                    name=indicator_name, report_markdown_table=report.markdown_table
                 )
                 for indicator_name, report in reports.items()
             ],
         )
-        
+
     except Exception as e:
         logger.error(f"Error retrieving company financial analysis indicators: {e}")
         return RetrieveCompanyFinancialAnalysisIndicatorsResponse(
@@ -613,8 +743,7 @@ async def _retrieve_company_financial_analysis_indicators(
             look_back_years=request.look_back_years,
             reports=[],
         )
-    
-    
+
 
 class RetrieveCompanyFundamentalsRequest(BaseModel):
     market_code: MarketCode = Annotated[

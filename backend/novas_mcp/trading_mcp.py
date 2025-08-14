@@ -52,23 +52,13 @@ def setup_trading_mcp_server(mcp: FastMCP):
         company_name: Annotated[
             str, Field(description="The name of the company to retrieve financial news for")
         ],
-        language: Annotated[
-            str, Field(description="The language of the news to retrieve, e.g. en, fr, de, etc.")
-        ] = "en",
+        symbol: Annotated[str, Field(description="The ticker symbol of the stock to retrieve financial news for")],
         num_results: Annotated[int, Field(description="The number of results to retrieve")] = 10,
-        start_date: Annotated[
-            str, Field(description="The start date of the news to retrieve, format: YYYY-mm-dd")
-        ] = datetime.now().isoformat(),
-        end_date: Annotated[
-            str, Field(description="The end date of the news to retrieve, format: YYYY-mm-dd")
-        ] = datetime.now().isoformat(),
     ) -> RetrieveCompanyNewsResponse:
         request = RetrieveCompanyNewsRequest(
             company_name=company_name,
-            language=language,
+            symbol=symbol,
             num_results=num_results,
-            start_date=start_date,
-            end_date=end_date,
         )
         return await _retrieve_company_news(request)
 

@@ -20,6 +20,7 @@ from semantic_kernel.agents import (
 from pydantic import BaseModel, Field
 from typing import (
     Any,
+    Literal,
     override,
     Any,
 )
@@ -67,13 +68,19 @@ class FinancialTradingAgentConfig(BaseModel):
     deep_think_model_config: dict[str, Any] = Field(default={}, metadata={})
     quick_think_model: str = Field(default="openai:gpt-4.1", metadata={})
     quick_think_model_config: dict[str, Any] = Field(default={}, metadata={})
-    mcp_server_url: str = Field(default="http://localhost:9000/trading/sse", metadata={})
+    mcp_server_url: str = Field(
+        default="http://localhost:9000/trading/sse", metadata={}
+    )
     max_debate_rounds: int = Field(default=1, metadata={})
     max_risk_discuss_rounds: int = Field(default=1, metadata={})
     max_recur_limit: int = Field(default=100, metadata={})
     selected_analysts: list[str] = Field(
         default=["market", "social", "news", "fundamentals"], metadata={}
     )
+    analyst_functions: dict[
+        Literal["market", "social", "news", "fundamentals"],
+        dict[Literal["included_functions", "excluded_functions"], list[str]],
+    ] = Field(default={}, metadata={})
     max_concurrent_analysts_tool_calls: int = Field(default=5, metadata={})
 
     class Config:
@@ -100,11 +107,14 @@ async def safe_invoke_function(
             )
             return function_result.value
         except Exception as e:
-            logger.error(f"Error invoking function {function_call_content.function_name}: {e}")
+            logger.error(
+                f"Error invoking function {function_call_content.function_name}: {e}"
+            )
             return {
                 "error": str(e),
                 "arguments": arguments,
             }
+
 
 async def async_invoke_analyst_component(
     analyst_name: str,
@@ -132,11 +142,13 @@ async def async_invoke_analyst_component(
         model=model_name,
         **model_config,
     )
+    plugin_name = "trading"
+    final_included_functions = [ f"{plugin_name}-{function_name}" for function_name in included_functions]
     function_choice_behavior = FunctionChoiceBehavior.Auto(
         auto_invoke=False,
         auto_invoke_kernel_functions=False,
         filters={
-            "included_functions": included_functions,
+            "included_functions": final_included_functions,
             "included_plugins": included_plugins,
         },
     )
@@ -169,7 +181,10 @@ async def async_invoke_analyst_component(
                 arguments = function_call_content.parse_arguments()
                 coroutines.append(
                     safe_invoke_function(
-                        kernel, function_call_content, arguments, function_call_semaphore
+                        kernel,
+                        function_call_content,
+                        arguments,
+                        function_call_semaphore,
                     )
                 )
 
@@ -226,7 +241,18 @@ async def invoke_analysts_stream(
                 "max_tokens": 8000,
             },
             "shall_continue_func": conditional_logic.should_continue_market,
-            "included_functions": [],
+            "included_functions": (
+                configurable.analyst_functions["market"]["included_functions"]
+                if "market" in configurable.analyst_functions
+                and "included_functions" in configurable.analyst_functions["market"]
+                else []
+            ),
+            "excluded_functions": (
+                configurable.analyst_functions["market"]["excluded_functions"]
+                if "market" in configurable.analyst_functions
+                and "excluded_functions" in configurable.analyst_functions["market"]
+                else []
+            ),
             "included_plugins": [],
         },
         "social": {
@@ -243,7 +269,18 @@ async def invoke_analysts_stream(
                 "max_tokens": 8000,
             },
             "shall_continue_func": conditional_logic.should_continue_social,
-            "included_functions": [],
+            "included_functions": (
+                configurable.analyst_functions["social"]["included_functions"]
+                if "social" in configurable.analyst_functions
+                and "included_functions" in configurable.analyst_functions["social"]
+                else []
+            ),
+            "excluded_functions": (
+                configurable.analyst_functions["social"]["excluded_functions"]
+                if "social" in configurable.analyst_functions
+                and "excluded_functions" in configurable.analyst_functions["social"]
+                else []
+            ),
             "included_plugins": [],
         },
         "news": {
@@ -260,7 +297,18 @@ async def invoke_analysts_stream(
                 "max_tokens": 8000,
             },
             "shall_continue_func": conditional_logic.should_continue_news,
-            "included_functions": [],
+            "included_functions": (
+                configurable.analyst_functions["news"]["included_functions"]
+                if "news" in configurable.analyst_functions
+                and "included_functions" in configurable.analyst_functions["news"]
+                else []
+            ),
+            "excluded_functions": (
+                configurable.analyst_functions["news"]["excluded_functions"]
+                if "news" in configurable.analyst_functions
+                and "excluded_functions" in configurable.analyst_functions["news"]
+                else []
+            ),
             "included_plugins": [],
         },
         "fundamentals": {
@@ -277,7 +325,20 @@ async def invoke_analysts_stream(
                 "max_tokens": 8000,
             },
             "shall_continue_func": conditional_logic.should_continue_fundamentals,
-            "included_functions": [],
+            "included_functions": (
+                configurable.analyst_functions["fundamentals"]["included_functions"]
+                if "fundamentals" in configurable.analyst_functions
+                and "included_functions"
+                in configurable.analyst_functions["fundamentals"]
+                else []
+            ),
+            "excluded_functions": (
+                configurable.analyst_functions["fundamentals"]["excluded_functions"]
+                if "fundamentals" in configurable.analyst_functions
+                and "excluded_functions"
+                in configurable.analyst_functions["fundamentals"]
+                else []
+            ),
             "included_plugins": [],
         },
     }
@@ -980,8 +1041,8 @@ class FinancialTradingAgent(DeclarativeSpecMixin, Agent):
 
                 step = state.next_step
                 seq += 1
-                self.log_state(state, seq)                
-                
+                self.log_state(state, seq)
+
         except Exception as e:
             logger.error(f"Error in trading agent: {e}")
             raise e
@@ -994,7 +1055,9 @@ class FinancialTradingAgent(DeclarativeSpecMixin, Agent):
         try:
             os.makedirs("./logs", exist_ok=True)
             with open(f"./logs/trading_state_{seq}.json", "w") as f:
-                json.dump(state.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
+                json.dump(
+                    state.model_dump(mode="json"), f, indent=2, ensure_ascii=False
+                )
         except Exception as e:
             logger.error(f"Error logging state: {e}")
 
@@ -1040,9 +1103,23 @@ async def main():
 
     config = FinancialTradingAgentConfig()
     # config.selected_analysts = ["market", "social", "news", "fundamentals"]
-    config.selected_analysts = ["fundamentals"]
+    config.selected_analysts = ["market", "news", "fundamentals"]
     config.deep_think_model = "openai:gpt-4.1"
     config.quick_think_model = "openai:gpt-4.1"
+    config.analyst_functions = {
+        "market": {
+            "included_functions": ["retrieve_stockstats_indicators_report", "retrieve_stock_historical_data"],
+        },
+        "news": {
+            "included_functions": ["retrieve_company_news"],
+        },
+        "fundamentals": {
+            "included_functions": ["retrieve_financial_cash_flow_statement", "retrieve_financial_income_statement", "retrieve_financial_balance_sheet", "retrieve_financial_analysis_indicators"],
+        },
+        "social": {
+            "included_functions": [],
+        }
+    }
     agent = FinancialTradingAgent(config)
     last_message_id = None
     async for response in agent.invoke_stream(
