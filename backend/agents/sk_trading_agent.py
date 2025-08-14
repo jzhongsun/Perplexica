@@ -1111,7 +1111,7 @@ async def main():
             "included_functions": ["retrieve_stockstats_indicators_report", "retrieve_stock_historical_data"],
         },
         "news": {
-            "included_functions": ["retrieve_company_news"],
+            "included_functions": ["retrieve_company_news", "retrieve_company_research_report"],
         },
         "fundamentals": {
             "included_functions": ["retrieve_financial_cash_flow_statement", "retrieve_financial_income_statement", "retrieve_financial_balance_sheet", "retrieve_financial_analysis_indicators"],

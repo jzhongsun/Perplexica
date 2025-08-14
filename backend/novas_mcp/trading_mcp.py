@@ -1,5 +1,5 @@
 from typing import Annotated
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .trading_core import (
     MarketCode,
@@ -18,6 +18,8 @@ from .trading_core import (
     RetrieveCompanyIncomeStatementResponse,
     RetrieveCompanyCashFlowStatementRequest,
     RetrieveCompanyCashFlowStatementResponse,
+    RetrieveCompanyResearchReportRequest,
+    RetrieveCompanyResearchReportResponse,
     RetrieveStockKlineDataRequest,
     RetrieveStockKlineDataResponse,
     RetrieveStockStatsIndicatorsReportRequest,
@@ -29,6 +31,7 @@ from .trading_core import (
     _retrieve_company_insider_transactions,
     _retrieve_company_insider_sentiment,
     _retrieve_company_news,
+    _retrieve_company_research_report,
     _retrieve_stock_kline_data,
     _retrieve_stock_stats_indicators_report,
     _retrieve_company_financial_analysis_indicators,
@@ -61,6 +64,31 @@ def setup_trading_mcp_server(mcp: FastMCP):
             num_results=num_results,
         )
         return await _retrieve_company_news(request)
+
+    @mcp.tool(
+        name="retrieve_company_research_report",
+        description="Retrieve research report for a company",
+    )
+    async def retrieve_company_research_report(
+        market_code: Annotated[MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")],
+        symbol: Annotated[str, Field(description="The ticker symbol of the stock to retrieve research report for")],
+        num_results: Annotated[int, Field(description="The number of results to retrieve")] = 10,
+        start_date: Annotated[
+            str, Field(description="The start date of the research report to retrieve, format: YYYY-mm-dd")
+        ] = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d"),
+        end_date: Annotated[
+            str, Field(description="The end date of the research report to retrieve, format: YYYY-mm-dd")
+        ] = datetime.now().strftime("%Y-%m-%d"),
+    ) -> RetrieveCompanyResearchReportResponse:
+        request = RetrieveCompanyResearchReportRequest(
+            market_code=market_code,
+            symbol=symbol,
+            num_results=num_results,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return await _retrieve_company_research_report(request)
+
 
     @mcp.tool(
         name="retrieve_stock_historical_data",

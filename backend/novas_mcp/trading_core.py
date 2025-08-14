@@ -92,10 +92,10 @@ async def _retrieve_company_news(
                 {
                     "title": r.title,
                     "url": r.url,
-                    "date": r.publish_date,
+                    "publish_date": r.publish_date,
                     "source": r.source,
                     "snippet": r.snippet,
-                    "content": r.content_markdown,
+                    "content_markdown": r.content_markdown,
                 }
                 for r in results
             ],
@@ -111,6 +111,76 @@ async def _retrieve_company_news(
             news=[],
         )
 
+
+class RetrieveCompanyResearchReportRequest(BaseModel):
+    market_code: MarketCode = Annotated[
+        MarketCode, Field(description="The market code of the stock symbol, available values are 'SH' and 'SZ'")
+    ]
+    symbol: str = Annotated[
+        str, Field(description="The ticker symbol of the stock to retrieve research report for")
+    ]
+    num_results: int = 10
+    start_date: str
+    end_date: str
+
+class RetrieveCompanyResearchReportResponse(BaseModel):
+    success: bool = Field(description="Whether the request is successful")
+    error_message: Optional[str] = Field(
+        default=None, description="The error message if the request is not successful"
+    )
+    market_code: MarketCode = Field(description="The market code of the stock symbol")
+    symbol: str = Field(description="The symbol of the stock to retrieve research report for")
+    num_results: int = Field(description="The number of results to retrieve")
+    start_date: str = Field(description="The start date of the research report to retrieve, format: YYYY-mm-dd")
+    end_date: str = Field(description="The end date of the research report to retrieve, format: YYYY-mm-dd")
+    reports: list[dict[str, str]] = Field(description="The research reports of the company")
+
+async def _retrieve_company_research_report(
+    request: RetrieveCompanyResearchReportRequest,
+) -> RetrieveCompanyResearchReportResponse:
+    logger.info(f"Retrieving company research report for {request}")
+    from novas_mcp.trading.trading_em_sentiment import em_retrieve_company_research_report
+    try:
+        results = await em_retrieve_company_research_report(
+            request.market_code,
+            request.symbol,
+            request.num_results,
+            request.start_date,
+            request.end_date,
+        )
+        return RetrieveCompanyResearchReportResponse(
+            success=True,
+            market_code=request.market_code,
+            symbol=request.symbol,
+            num_results=request.num_results,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            reports=[
+                {
+                    "title": r.title,
+                    "url": r.url,
+                    "publish_date": r.publish_date,
+                    "organization": r.organization,
+                    "researcher": r.researcher,
+                    "rating": r.rating,
+                    "industry": r.industry,
+                    "content_markdown": r.content_markdown,
+                }
+                for r in results
+            ],
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving company research report: {e}")
+        return RetrieveCompanyResearchReportResponse(
+            success=False,
+            error_message=str(e),
+            market_code=request.market_code,
+            symbol=request.symbol,
+            num_results=request.num_results,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            reports=[],
+        )
 
 class RetrieveStockKlineDataRequest(BaseModel):
     market_code: MarketCode = Annotated[
