@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from app.core.config import get_settings
-from app.db.models import DbUserBase
+from novas_app.core.config import get_settings
+from novas_app.db.models import DbUserBase
 
 # Load our configuration
 config = context.config
