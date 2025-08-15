@@ -79,6 +79,172 @@ const TradingRetrieveStockHistoricalDataRenderer: React.FC<PartRendererProps<any
     return intervalMap[interval] || interval;
   };
 
+  // 处理万、亿单位的数值转换
+  const parseNumberWithUnit = (value: string): number => {
+    if (!value || typeof value !== 'string') return 0;
+    
+    const cleanValue = value.toString().trim();
+    
+    // 处理万、亿单位
+    if (cleanValue.includes('万')) {
+      const num = parseFloat(cleanValue.replace('万', ''));
+      return isNaN(num) ? 0 : num * 10000;
+    }
+    if (cleanValue.includes('亿')) {
+      const num = parseFloat(cleanValue.replace('亿', ''));
+      return isNaN(num) ? 0 : num * 100000000;
+    }
+    
+    // 处理普通数值（移除可能的逗号）
+    const num = parseFloat(cleanValue.replace(/,/g, ''));
+    return isNaN(num) ? 0 : num;
+  };
+
+  // 解析K线数据用于图表显示
+  const parseKlineData = (tableMarkdown: string) => {
+    try {
+      const lines = tableMarkdown.split('\n').filter(line => line.trim() && !line.includes('|----'));
+      const dataLines = lines.slice(1); // 跳过表头
+      
+      return dataLines.map(line => {
+        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+        if (cells.length >= 7) {
+          return {
+            date: cells[1],
+            open: parseNumberWithUnit(cells[3]),
+            close: parseNumberWithUnit(cells[4]),
+            high: parseNumberWithUnit(cells[5]),
+            low: parseNumberWithUnit(cells[6]),
+            changePercent: parseFloat(cells[10]?.replace('%', '')) || 0
+          };
+        }
+        return null;
+      }).filter(Boolean).slice(0, 20); // 最多显示20个数据点
+    } catch {
+      return [];
+    }
+  };
+
+  // 渲染迷你K线图
+  const renderMiniKlineChart = (klineData: any[]) => {
+    if (!klineData || klineData.length === 0) return null;
+
+    const maxPrice = Math.max(...klineData.map(d => d.high));
+    const minPrice = Math.min(...klineData.map(d => d.low));
+    const priceRange = maxPrice - minPrice || 1; // 防止除零
+    const chartHeight = 120;
+    const chartPadding = 40;
+    const totalWidth = 800; // 固定总宽度用于viewBox
+
+    return (
+      <div className="mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
+          <h6 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center space-x-2">
+            <BarChart3 size={16} />
+            <span>价格走势图</span>
+          </h6>
+          
+          <div className="w-full">
+            <svg
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${totalWidth} ${chartHeight + 40}`}
+              className="overflow-visible"
+              preserveAspectRatio="none"
+            >
+              {/* 网格线 */}
+              <defs>
+                <pattern id="grid" width="40" height="30" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 30" fill="none" stroke="rgb(229 231 235)" strokeWidth="0.5" className="dark:stroke-gray-600"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height={chartHeight} fill="url(#grid)" />
+              
+              {/* K线柱 */}
+              {klineData.map((data, index) => {
+                const x = chartPadding + index * (totalWidth - chartPadding * 2) / Math.max(klineData.length - 1, 1);
+                const highY = 10 + ((maxPrice - data.high) / priceRange) * (chartHeight - 20);
+                const lowY = 10 + ((maxPrice - data.low) / priceRange) * (chartHeight - 20);
+                const openY = 10 + ((maxPrice - data.open) / priceRange) * (chartHeight - 20);
+                const closeY = 10 + ((maxPrice - data.close) / priceRange) * (chartHeight - 20);
+                
+                const isUp = data.close >= data.open;
+                const bodyTop = Math.min(openY, closeY);
+                const bodyHeight = Math.abs(closeY - openY);
+                const bodyColor = isUp ? '#ef4444' : '#22c55e'; // 红涨绿跌
+                const wickColor = isUp ? '#ef4444' : '#22c55e';
+                
+                // 根据数据点数量动态调整K线宽度
+                const candleWidth = Math.min(12, Math.max(3, (totalWidth - chartPadding * 2) / klineData.length * 0.6));
+                const halfWidth = candleWidth / 2;
+                
+                return (
+                  <g key={index}>
+                    {/* 上下影线 */}
+                    <line
+                      x1={x}
+                      y1={highY}
+                      x2={x}
+                      y2={lowY}
+                      stroke={wickColor}
+                      strokeWidth="1"
+                    />
+                    {/* K线实体 */}
+                    <rect
+                      x={x - halfWidth}
+                      y={bodyTop}
+                      width={candleWidth}
+                      height={Math.max(bodyHeight, 1)}
+                      fill={isUp ? bodyColor : 'none'}
+                      stroke={bodyColor}
+                      strokeWidth="1"
+                    />
+                  </g>
+                );
+              })}
+              
+              {/* 价格标签 */}
+              <text x="5" y="15" fontSize="10" fill="rgb(107 114 128)" className="dark:fill-gray-400">
+                {maxPrice.toFixed(2)}
+              </text>
+              <text x="5" y={chartHeight - 5} fontSize="10" fill="rgb(107 114 128)" className="dark:fill-gray-400">
+                {minPrice.toFixed(2)}
+              </text>
+            </svg>
+            
+            {/* 日期标签 */}
+            <div className="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <span>{klineData[0]?.date}</span>
+              <span>{klineData[klineData.length - 1]?.date}</span>
+            </div>
+          </div>
+          
+          {/* 统计信息 */}
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-2">
+              <div className="text-gray-500 dark:text-gray-400">最高</div>
+              <div className="font-medium text-red-600 dark:text-red-400">{maxPrice.toFixed(2)}</div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-2">
+              <div className="text-gray-500 dark:text-gray-400">最低</div>
+              <div className="font-medium text-green-600 dark:text-green-400">{minPrice.toFixed(2)}</div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-2">
+              <div className="text-gray-500 dark:text-gray-400">期间涨跌</div>
+              <div className={`font-medium ${klineData[klineData.length - 1]?.changePercent >= 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                {klineData[klineData.length - 1]?.changePercent >= 0 ? '+' : ''}{klineData[klineData.length - 1]?.changePercent.toFixed(2)}%
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-2">
+              <div className="text-gray-500 dark:text-gray-400">数据点数</div>
+              <div className="font-medium text-blue-600 dark:text-blue-400">{klineData.length}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderHistoricalData = () => {
     if (!part.output) {
       return <div className="text-gray-500 dark:text-gray-400">No historical data available</div>;
@@ -126,6 +292,9 @@ const TradingRetrieveStockHistoricalDataRenderer: React.FC<PartRendererProps<any
             </div>
           </div>
         </div>
+        
+        {/* K线图表 */}
+        {historicalData.kline_markdown_table && renderMiniKlineChart(parseKlineData(historicalData.kline_markdown_table))}
         
         {/* K线数据表格 */}
         {historicalData.kline_markdown_table && (
