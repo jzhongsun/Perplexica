@@ -11,6 +11,7 @@ import { DataPartPlugin } from './DataPartPlugin';
 import { WebPageFetchPlugin } from './WebPageFetchPlugin';
 import { WebSearchPlugin } from './WebSearchPlugin';
 import { WebSearchAndFetchPlugin } from './WebSearchAndFetchPlugin';
+import { TradingRetrieveCompanyNewsPlugin } from './TradingRetrieveCompanyNewsPlugin';
 
 export interface PartPlugin {
   type: string;                    // 部分类型，如 'text', 'tool-*', 'reasoning' 等
@@ -48,6 +49,7 @@ export const partPlugins: Record<string, PartPlugin> = {
   'tool-web_search': WebSearchPlugin,
   'tool-web_search-search_and_fetch': WebSearchAndFetchPlugin,
   'tool-web_search_and_fetch': WebSearchAndFetchPlugin,
+  'tool-trading-retrieve_company_news': TradingRetrieveCompanyNewsPlugin,
   // 通用工具插件匹配器（兜底方案）
   '__tool__': DefaultToolPlugin,
   '__data__': DataPartPlugin,
