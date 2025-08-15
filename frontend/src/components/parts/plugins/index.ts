@@ -12,6 +12,10 @@ import { WebPageFetchPlugin } from './WebPageFetchPlugin';
 import { WebSearchPlugin } from './WebSearchPlugin';
 import { WebSearchAndFetchPlugin } from './WebSearchAndFetchPlugin';
 import { TradingRetrieveCompanyNewsPlugin } from './TradingRetrieveCompanyNewsPlugin';
+import { TradingRetrieveFinancialAnalysisPlugin } from './TradingRetrieveFinancialAnalysisPlugin';
+import { TradingRetrieveBalanceSheetPlugin } from './TradingRetrieveBalanceSheetPlugin';
+import { TradingRetrieveCashFlowPlugin } from './TradingRetrieveCashFlowPlugin';
+import { TradingRetrieveIncomeStatementPlugin } from './TradingRetrieveIncomeStatementPlugin';
 
 export interface PartPlugin {
   type: string;                    // 部分类型，如 'text', 'tool-*', 'reasoning' 等
@@ -50,6 +54,10 @@ export const partPlugins: Record<string, PartPlugin> = {
   'tool-web_search-search_and_fetch': WebSearchAndFetchPlugin,
   'tool-web_search_and_fetch': WebSearchAndFetchPlugin,
   'tool-trading-retrieve_company_news': TradingRetrieveCompanyNewsPlugin,
+  'tool-trading-retrieve_financial_analysis_indicators': TradingRetrieveFinancialAnalysisPlugin,
+  'tool-trading-retrieve_financial_balance_sheet': TradingRetrieveBalanceSheetPlugin,
+  'tool-trading-retrieve_financial_cash_flow_statement': TradingRetrieveCashFlowPlugin,
+  'tool-trading-retrieve_financial_income_statement': TradingRetrieveIncomeStatementPlugin,
   // 通用工具插件匹配器（兜底方案）
   '__tool__': DefaultToolPlugin,
   '__data__': DataPartPlugin,
