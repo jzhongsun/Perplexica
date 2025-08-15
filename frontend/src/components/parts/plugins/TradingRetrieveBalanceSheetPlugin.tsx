@@ -36,7 +36,6 @@ interface BalanceSheetOutput {
 
 const TradingRetrieveBalanceSheetRenderer: React.FC<PartRendererProps<any>> = ({ part, partIndex, message }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [expandedReports, setExpandedReports] = useState<Set<number>>(new Set([0])); // 默认展开第一个报告
   
   const getStateIcon = () => {
     switch (part.state) {
@@ -66,16 +65,6 @@ const TradingRetrieveBalanceSheetRenderer: React.FC<PartRendererProps<any>> = ({
       default:
         return 'Ready';
     }
-  };
-
-  const toggleReportExpansion = (index: number) => {
-    const newExpanded = new Set(expandedReports);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedReports(newExpanded);
   };
 
   const getReportIcon = (reportName: string) => {
@@ -142,12 +131,7 @@ const TradingRetrieveBalanceSheetRenderer: React.FC<PartRendererProps<any>> = ({
         
         {/* 资产负债表列表 */}
         {balanceSheetData.reports && balanceSheetData.reports.length > 0 && (
-          <div className="space-y-3">
-            <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
-              <PieChart size={16} />
-              <span>资产负债表</span>
-            </h5>
-            
+          <div className="space-y-3">            
             {balanceSheetData.reports.map((report, index) => (
               <div 
                 key={index}
@@ -161,51 +145,43 @@ const TradingRetrieveBalanceSheetRenderer: React.FC<PartRendererProps<any>> = ({
                         {report.name}
                       </h6>
                     </div>
-                    <button
-                      onClick={() => toggleReportExpansion(index)}
-                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                    >
-                      {expandedReports.has(index) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
                   </div>
                   
-                  {expandedReports.has(index) && (
-                    <div className="mt-4">
-                      <MemoizedMarkdown
-                        content={report.report_markdown_table}
-                        className="prose prose-sm max-w-none dark:prose-invert"
-                        options={{
-                          overrides: {
-                            table: {
-                              props: {
-                                className: "min-w-full divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
-                              }
-                            },
-                            thead: {
-                              props: {
-                                className: "bg-gray-50 dark:bg-gray-800"
-                              }
-                            },
-                            th: {
-                              props: {
-                                className: "px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 last:border-r-0"
-                              }
-                            },
-                            tbody: {
-                              props: {
-                                className: "bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700"
-                              }
-                            },
-                            td: {
-                              props: {
-                                className: "px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 last:border-r-0"
-                              }
+                  <div className="mt-4">
+                    <MemoizedMarkdown
+                      content={report.report_markdown_table}
+                      className="prose prose-sm max-w-none dark:prose-invert"
+                      options={{
+                        overrides: {
+                          table: {
+                            props: {
+                              className: "min-w-full divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                            }
+                          },
+                          thead: {
+                            props: {
+                              className: "bg-gray-50 dark:bg-gray-800"
+                            }
+                          },
+                          th: {
+                            props: {
+                              className: "px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 last:border-r-0"
+                            }
+                          },
+                          tbody: {
+                            props: {
+                              className: "bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700"
+                            }
+                          },
+                          td: {
+                            props: {
+                              className: "px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 last:border-r-0"
                             }
                           }
-                        }}
-                      />
-                    </div>
-                  )}
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
