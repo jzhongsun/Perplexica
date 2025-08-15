@@ -17,6 +17,7 @@ import { TradingRetrieveBalanceSheetPlugin } from './TradingRetrieveBalanceSheet
 import { TradingRetrieveCashFlowPlugin } from './TradingRetrieveCashFlowPlugin';
 import { TradingRetrieveIncomeStatementPlugin } from './TradingRetrieveIncomeStatementPlugin';
 import { TradingRetrieveStockHistoricalDataPlugin } from './TradingRetrieveStockHistoricalDataPlugin';
+import { TradingRetrieveCompanyResearchReportPlugin } from './TradingRetrieveCompanyResearchReportPlugin';
 
 export interface PartPlugin {
   type: string;                    // 部分类型，如 'text', 'tool-*', 'reasoning' 等
@@ -60,6 +61,7 @@ export const partPlugins: Record<string, PartPlugin> = {
   'tool-trading-retrieve_financial_cash_flow_statement': TradingRetrieveCashFlowPlugin,
   'tool-trading-retrieve_financial_income_statement': TradingRetrieveIncomeStatementPlugin,
   'tool-trading-retrieve_stock_historical_data': TradingRetrieveStockHistoricalDataPlugin,
+  'tool-trading-retrieve_company_research_report': TradingRetrieveCompanyResearchReportPlugin,
   // 通用工具插件匹配器（兜底方案）
   '__tool__': DefaultToolPlugin,
   '__data__': DataPartPlugin,
