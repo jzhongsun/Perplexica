@@ -112,7 +112,7 @@ const Chat = ({
       </div>
 
       {/* Right side - Workspace panel */}
-      <div 
+      {/* <div 
         className={`${PANEL_WIDTHS[panelMode]} pt-4 overflow-y-auto transition-[width] duration-300 ease-in-out`}
       >
         <WorkspacePanel 
@@ -121,7 +121,7 @@ const Chat = ({
           mode={panelMode}
           onModeChange={handlePanelModeChange}
         />
-      </div>
+      </div> */}
     </div>
   );
 };
