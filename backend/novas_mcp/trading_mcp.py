@@ -100,10 +100,10 @@ def setup_trading_mcp_server(mcp: FastMCP):
         interval: Annotated[str, Field(description="The interval of the historical data to retrieve, available values are 'daily', 'weekly' or 'monthly'")],
         start_date: Annotated[
             str, Field(description="The start date of the historical data to retrieve, format: YYYY-mm-dd")
-        ] = datetime.now().isoformat(),
+        ] = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"),
         end_date: Annotated[
             str, Field(description="The end date of the historical data to retrieve, format: YYYY-mm-dd")
-        ] = datetime.now().isoformat(),
+        ] = datetime.now().strftime("%Y-%m-%d"),
     ) -> RetrieveStockKlineDataResponse:
         logger.info(
             f"Retrieving stock historical data for {market_code.value}{symbol} from {start_date} to {end_date}"

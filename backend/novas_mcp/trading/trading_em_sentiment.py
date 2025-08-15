@@ -4,13 +4,13 @@ import json
 from datetime import datetime, timedelta
 from typing import Optional
 import markdownify
+import re
 
 EM_HTTP_HEADERS_DEFAULT = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 }
 
-import pandas as pd
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field
 import logging
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,9 @@ async def em_fetch_news_content(
         content_body_html = doc.xpath(path)[0]
 
         content_text = content_body_html.text_content()
+        if content_text:
+            content_text = re.sub(r' +', ' ', content_text)
+            
         content_html = cleaner.clean_html(
             lxml.html.tostring(
                 content_body_html, pretty_print=True, encoding="unicode", method="html"
@@ -136,6 +139,10 @@ async def em_retrieve_company_news(
             )
 
         for r in results:
+            if r.url is None:
+                continue
+            if r.snippet is not None:
+                r.snippet = r.snippet.replace("<em>", "").replace("</em>", "")
             content_text, content_html, content_markdown = await em_fetch_news_content(
                 r.url
             )
@@ -176,6 +183,9 @@ async def em_fetch_research_report_content(
             # path = path + "/div[@class='zwinfos']/div[@id='ContentBody']"
             content_body_html = doc.xpath("//div[@id='ctx-content']")[0]
             content_text = content_body_html.text_content()
+            if content_text:
+                content_text = re.sub(r' +', ' ', content_text)
+            
             content_html = cleaner.clean_html(
                 lxml.html.tostring(
                     content_body_html, pretty_print=True, encoding="unicode", method="html"

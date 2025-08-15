@@ -191,9 +191,12 @@ class RetrieveStockKlineDataRequest(BaseModel):
     ]
     symbol: str
     interval: str
-    start_date: str
+    start_date: str = Field(
+        default=(datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"),
+        description="The start date of the kline data to retrieve, format: YYYY-mm-dd",
+    )
     end_date: str = Field(
-        default=datetime.now().isoformat(),
+        default=datetime.now().strftime("%Y-%m-%d"),
         description="The end date of the kline data to retrieve, format: YYYY-mm-dd",
     )
 
