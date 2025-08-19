@@ -250,7 +250,7 @@ class UserDbService:
             id=task.id,
             chat_id=chat_id,
             task_id=task.id,
-            context_id=task.contextId,
+            context_id=task.context_id,
             agent_id=agent_id,
             status=task.status.state.value,
             _metadata=task.metadata,

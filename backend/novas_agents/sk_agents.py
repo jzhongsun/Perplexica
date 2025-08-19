@@ -9,8 +9,7 @@ import os
 from a2a.server.apps import A2AStarletteApplication
 from a2a.types import AgentCard, AgentCapabilities, AgentProvider, AgentSkill
 from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.tasks import InMemoryTaskStore, InMemoryPushNotifier
-import httpx
+from a2a.server.tasks import InMemoryTaskStore
 from .sk_helper import SemanticKernelAgentExecutor
 import yaml
 
@@ -36,12 +35,10 @@ def setup_sk_agent_from_card(app: FastAPI,
                              agent_card: AgentCard, 
                              agent_config: Dict[str, Any],
                              agent_builder: Callable[[AgentCard, Dict[str, Any]], Agent]):
-    agent_card.url = PUBLIC_HOST_URL + "/" + agent_name
-    httpx_client = httpx.AsyncClient()
+    agent_card.url = PUBLIC_HOST_URL + "/" + agent_name + "/"
     request_handler = DefaultRequestHandler(
         agent_executor=SemanticKernelAgentExecutor(agent_name, agent_card, agent_config, agent_builder),
         task_store=InMemoryTaskStore(),
-        push_notifier=InMemoryPushNotifier(httpx_client),
     )
     a2a_app = A2AStarletteApplication(
         agent_card=agent_card, http_handler=request_handler

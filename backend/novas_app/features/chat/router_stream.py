@@ -2,42 +2,23 @@
 
 import datetime
 import asyncio
-from typing import Dict, Any
-from novas_app.core.ui_message_stream import ErrorUIMessageStreamPart
-from novas_app.db.schemas import User
+import uuid
+from loguru import logger
+import traceback
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
-import uuid
-from loguru import logger
-from novas_app.core.stream_manager import get_stream_manager
+
+from novas_app.core.ui_message_stream import ErrorUIMessageStreamPart
+from novas_app.db.schemas import User
 
 from .service import ChatService
 from .schemas import ChatStreamRequest, ChatRequest
 from novas_app.depends import get_chat_service, get_current_user
 
-router = APIRouter(prefix="/chat-stream", tags=["chat"])
 
-async def chat_producer(stream_key: str, chat_service: ChatService, chat_id: str, messages, options: Dict[str, Any]):
-    """Producer function that generates chat stream data."""
-    stream_manager = get_stream_manager()
-    
-    try:
-        # Start the actual chat stream
-        stream = chat_service.chat_stream(chat_id, messages, options)
-        async for stream_part in stream:
-            # Write each stream part to Redis Stream
-            await stream_manager.publish_to_stream(
-                stream_key,
-                "stream_part",
-                {
-                    "data": stream_part.model_dump_json(exclude_none=True)
-                }
-            )
-    except Exception as e:
-        logger.error(f"Error in chat producer: {str(e)}")
-        # Error will be handled by the stream manager
-        raise
+router = APIRouter(prefix="/chat-stream", tags=["chat"])
 
 @router.post("", response_class=EventSourceResponse)
 async def handle_chat_stream(
@@ -45,7 +26,7 @@ async def handle_chat_stream(
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    """Create a new chat with streaming response using Redis Stream."""
+    """Create a new chat with streaming response."""
     
     chat_id = request.id
     if chat_id is None or len(chat_id) == 0:
@@ -62,6 +43,7 @@ async def handle_chat_stream(
         if chat is None:
             raise HTTPException(status_code=404, detail="Chat not found")
         
+    # Ensure message IDs and metadata are set
     for message in request.messages:
         if message.id is None or len(message.id) == 0:
             message.id = str(uuid.uuid4())
@@ -69,51 +51,46 @@ async def handle_chat_stream(
             message.metadata = {}
         if "createdAt" not in message.metadata:
             message.metadata["createdAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-    stream_manager = get_stream_manager()
     
     async def event_generator():
-        """Generate SSE events from Redis Stream."""
-        # Create stream and get consumer
-        stream_key = await stream_manager.create_stream(chat_id)
-        consumer_id = await stream_manager.add_consumer(stream_key)
-        
+        """Generate SSE events directly from chat stream."""
         try:
-            # Start producer if not already running
-            producer_started = await stream_manager.start_producer(
-                stream_key,
-                chat_producer,
-                chat_service,
-                chat_id,
-                request.messages,
-                request.options.__dict__ if request.options else {}
-            )
+            # Get the chat stream directly from service
+            options = request.options.__dict__ if request.options else {}
+            stream = chat_service.chat_stream(chat_id, request.messages, options)
             
-            if producer_started:
-                logger.info(f"Started producer for stream {stream_key}")
-            else:
-                logger.info(f"Producer already running for stream {stream_key}")
-            
-            # Consume from stream
-            async for event in stream_manager.consume_stream(stream_key, consumer_id):
-                yield event
+            # Stream each part as SSE event
+            async for stream_part in stream:
+                # print(f'stream_part: {stream_part}')
+                yield {
+                    "id": str(uuid.uuid4()),
+                    "event": "message",
+                    "data": stream_part.model_dump_json(exclude_none=True),
+                }
                 
-        except asyncio.CancelledError:
-            logger.info(f"Consumer {consumer_id} cancelled")
+        except asyncio.CancelledError as e:
+            # Client disconnected - this is normal, log as info without full traceback
+            logger.info(f"Chat stream cancelled for chat {chat_id} (client disconnected)")
+            logger.error(f"chat stream cancelled: {chat_id} {e}, {traceback.format_exc()}")
+            
             raise
         except Exception as e:
-            logger.error(f"Error in event generator: {str(e)}")
+            logger.error(f"chat stream error: {e}, {traceback.format_exc()}")
+
             yield {
                 "id": str(uuid.uuid4()),
-                "event": "message",
+                "event": "error",
                 "data": ErrorUIMessageStreamPart(errorText=str(e)).model_dump_json(exclude_none=True),
             }
-        finally:
-            # Clean up consumer
-            await stream_manager.remove_consumer(stream_key, consumer_id)
+
+    async def client_close_handler(message: any):
+        """Handle client close event."""
+        logger.warning(f"Client closed chat stream for chat {chat_id} - {message}")
+        print(f'{__file__} client_close_handler>\n{message}')
 
     return EventSourceResponse(
         event_generator(),
+        ping=15,  # Send ping every 15 seconds (default)
         headers={
             "x-vercel-ai-ui-message-stream": "v1",
             "Content-Type": "text/event-stream; charset=utf-8",
@@ -121,4 +98,5 @@ async def handle_chat_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+        client_close_handler_callable=client_close_handler,
     )

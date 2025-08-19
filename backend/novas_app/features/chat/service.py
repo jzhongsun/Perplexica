@@ -1,8 +1,7 @@
-import json
 import os
 import uuid
 import asyncio
-from typing import AsyncGenerator, List, Dict, Any, Optional
+from typing import AsyncGenerator, List, Dict, Any, Optional, AsyncIterator
 from datetime import datetime, timezone
 import logging
 import traceback
@@ -28,31 +27,21 @@ from novas_app.db.service import UserDbService
 # from app.features.search import get_search_handler
 from .schemas import (
     ChatRequest,
-    NonStreamResponse,
-    StreamResponse,
     MessageMetadata,
-    ChatResponse,
-    Message,
     ChatHistory,
     ChatMetadata,
     ChatFile,
     MessagesResponse,
 )
 import a2a.types as a2a_types
-from a2a.client import A2AClient
+from a2a.client import Client, A2ACardResolver, ClientFactory, ClientConfig
 import httpx
-from novas_app.core.utils.messages import ui_message_to_a2a_message
 from novas_app.core.ui_messages import (
     ToolUIPartInputAvailable,
     ToolUIPartOutputAvailable,
     UIMessage,
     UIMessagePart,
     TextUIPart,
-    FileUIPart,
-    ReasoningUIPart,
-    SourceUrlUIPart,
-    SourceDocumentUIPart,
-    ToolUIPart,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,8 +52,8 @@ A2A_BASE_AGENT_URL = os.getenv(
 )
 
 FOCUS_MODE_2_AGENT_URL = {
-    "stock_symbol_research": f"{A2A_BASE_AGENT_URL}/stock_symbol_research/",
-    "web_search": f"{A2A_BASE_AGENT_URL}/web_search/",
+    "stock_symbol_research": "/stock_symbol_research",
+    "web_search": "/web_search",
 }
 
 CONTEXTUAL_QUERY_PROMPT_TEMPLATE = """
@@ -99,6 +88,12 @@ Query:
 Answer:
 """
 
+HTTPX_TIMEOUT = httpx.Timeout(
+    connect=10.0,      # Connection timeout
+    read=600.0,        # Read timeout (10 minutes for long AI responses)
+    write=10.0,        # Write timeout
+    pool=10.0          # Pool timeout
+)
 
 class ChatService:
     """Chat service class."""
@@ -122,12 +117,26 @@ class ChatService:
         service = cls(user)
         return await service.__aenter__()
 
-    async def resolve_agent_client(self, options: Dict[str, Any]) -> A2AClient:
+    async def resolve_agent_client(self, options: Dict[str, Any]) -> Client:
         logger.info(f"resolve_agent_client - options: {options}, FOCUS_MODE_2_AGENT_URL: {FOCUS_MODE_2_AGENT_URL}")
         a2a_url = FOCUS_MODE_2_AGENT_URL[options["focusMode"]] if options and "focusMode" in options and options["focusMode"] in FOCUS_MODE_2_AGENT_URL else A2A_BASE_AGENT_URL
         logger.info(f"resolved: A2A: options: {options} URL: {a2a_url}")
-        a2a_client = A2AClient(
-            httpx_client=httpx.AsyncClient(),
+        
+        # Configure httpx client with appropriate timeouts and connection handling
+        httpx_client = httpx.AsyncClient(
+            timeout=HTTPX_TIMEOUT,
+            # Add connection pool limits to prevent resource exhaustion
+            limits=httpx.Limits(
+                max_keepalive_connections=50,
+                max_connections=500,
+                keepalive_expiry=30.0,
+            ),
+            # Follow redirects and retry on connection errors
+            follow_redirects=True,
+        )
+        
+        a2a_client = Client(
+            httpx_client=httpx_client,
             url=a2a_url,
         )
         return a2a_client
@@ -179,17 +188,42 @@ class ChatService:
                 contextId=context_id,
                 extensions=[],
             )
-
+    
     async def chat_stream(
-        self, chat_id: str, messages: List[UIMessage], options: Dict[str, Any] = {}
-    ) -> AsyncGenerator[UIMessageStreamPart]:
-
+        self,
+        chat_id: str,
+        messages: List[UIMessage],
+        options: Dict[str, Any] = {}
+    ) -> AsyncIterator[UIMessageStreamPart]:
         chat = await self.db.fetch_chat(chat_id) if chat_id else None
         if chat is None:
             raise HTTPException(status_code=404, detail="Chat not found")
 
         """Chat stream."""
-        agent_client = await self.resolve_agent_client(options)
+        async with httpx.AsyncClient(timeout=HTTPX_TIMEOUT) as httpx_client:
+            relative_agent_url = FOCUS_MODE_2_AGENT_URL[options["focusMode"]] if options and "focusMode" in options and options["focusMode"] in FOCUS_MODE_2_AGENT_URL else A2A_BASE_AGENT_URL
+            resolver = A2ACardResolver(
+                httpx_client=httpx_client,
+                base_url=A2A_BASE_URL + relative_agent_url,
+            )
+            agent_card = await resolver.get_agent_card()
+            logger.info(f"agent_card: {agent_card}")
+            
+            client_factory = ClientFactory(
+                config=ClientConfig(
+                    streaming=True,
+                    httpx_client=httpx_client,
+                )
+            )
+            
+            agent_client = client_factory.create(agent_card)
+            async for part in self._chat_stream_internal(chat_id, agent_client, messages, options):
+                if part is not None:
+                    yield part
+
+    async def _chat_stream_internal(
+        self, chat_id: str, agent_client: Client, messages: List[UIMessage], options: Dict[str, Any] = {}
+    ) -> AsyncIterator[UIMessageStreamPart]:
 
         request_id = str(uuid.uuid4())
         final_user_message_ui: UIMessage = messages[-1]
@@ -197,15 +231,6 @@ class ChatService:
             chat_id, final_user_message_ui
         )
 
-        stream = agent_client.send_message_streaming(
-            request=a2a_types.SendStreamingMessageRequest(
-                id=request_id,
-                params=a2a_types.MessageSendParams(
-                    message=final_user_message_a2a,
-                    metadata={},
-                ),
-            )
-        )
         task_id = None
         context_id = None
         agent_id = "entry_agent"
@@ -233,36 +258,52 @@ class ChatService:
 
             active_message_props = ActiveMessageProps()
 
-            async for response in stream:
-                if isinstance(response.root.result, a2a_types.JSONRPCErrorResponse):
-                    logger.error(f"Error in chat stream: {response.root.result.error}")
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Error in chat stream: {response.root.result.error}",
-                    )
+            stream = agent_client.send_message(
+                request=final_user_message_a2a,
+                # request=a2a_types.SendMessageRequest(
+                #     id=request_id,
+                #     params=a2a_types.MessageSendParams(
+                #         message=final_user_message_a2a,
+                #         metadata={},
+                #     ),
+                # )
+            )
+            
+            a2a_task = None
+            async for chunk in stream:
+                task = None
+                event = None
+                message = None
 
-                success_response = response.root
+                if isinstance(chunk, a2a_types.Message):
+                    message = chunk
+                elif isinstance(chunk, tuple):
+                    task, event = chunk
+                    
+                print(f'{__file__} > {type(task)} {type(event)} {type(message)}')
+                # yield None
+
                 if isinstance(
-                    success_response.result, a2a_types.TaskArtifactUpdateEvent
+                    event, a2a_types.TaskArtifactUpdateEvent
                 ):
                     await self.db.create_artifact(
-                        success_response.result.artifact, task_id, context_id
+                        event.artifact, task_id, context_id
                     )
                 elif isinstance(
-                    success_response.result, a2a_types.TaskStatusUpdateEvent
+                    event, a2a_types.TaskStatusUpdateEvent
                 ):
                     # logger.info(f"TaskStatusUpdateEvent: {success_response}")
-                    status = success_response.result.status
+                    status = event.status
                     if status.state == a2a_types.TaskState.submitted:
                         continue
 
-                    status_message = success_response.result.status.message
+                    status_message = event.status.message
                     if status_message is None:
                         continue
 
                     if (
                         active_message_props.reference_message_id
-                        != status_message.messageId
+                        != status_message.message_id
                     ):
                         if active_message_props.text_part_id is not None:
                             yield TextEndUIMessageStreamPart(
@@ -270,7 +311,7 @@ class ChatService:
                             )
                             active_message_props.text_part_id = None
                         active_message_props.reference_message_id = (
-                            status_message.messageId
+                            status_message.message_id
                         )
 
                     for part in status_message.parts:
@@ -285,21 +326,21 @@ class ChatService:
                                 delta=part.root.text,
                             )
                             if (
-                                response_message_parts_ref.get(status_message.messageId)
+                                response_message_parts_ref.get(status_message.message_id)
                                 is None
                             ):
-                                response_message_parts_ref[status_message.messageId] = (
+                                response_message_parts_ref[status_message.message_id] = (
                                     TextUIPart(text=part.root.text)
                                 )
                                 final_response_message_ui.parts.append(
-                                    response_message_parts_ref[status_message.messageId]
+                                    response_message_parts_ref[status_message.message_id]
                                 )
                             else:
                                 response_message_parts_ref[
-                                    status_message.messageId
+                                    status_message.message_id
                                 ].text += part.root.text
                         elif isinstance(part.root, a2a_types.DataPart):
-                            logger.info(f"Data part: {part.root}")
+                            # logger.info(f"Data part: {part.root}")
                             if part.root.metadata.get("inner_part_type") == "tool_call":
                                 tool_call_data = part.root.data
                                 tool_call_id = tool_call_data.get("tool_call_id")
@@ -371,43 +412,45 @@ class ChatService:
                         else:
                             logger.info(f"Unknown part: {part.root}")
 
-                elif isinstance(success_response.result, a2a_types.Task):
-                    task = response.root.result
+                if task is not None:
                     if task.status.state == a2a_types.TaskState.submitted:
                         task_id = task.id
-                        context_id = task.contextId
-                        await self.db.create_task(task, chat_id, agent_id)
-                        await self.db.create_message(
-                            final_user_message_ui, chat_id, task_id, context_id
-                        )
-                        if (
-                            final_user_message_ui.parts
-                            and len(final_user_message_ui.parts) > 0
-                        ):
-                            await self.db.create_message_parts(
-                                final_user_message_ui.id, final_user_message_ui.parts
+                        context_id = task.context_id
+                        if a2a_task is None:
+                            a2a_task = task
+                            await self.db.create_task(a2a_task, chat_id, agent_id)
+                            await self.db.create_message(
+                                final_user_message_ui, chat_id, task_id, context_id
                             )
+                            if (
+                                final_user_message_ui.parts
+                                and len(final_user_message_ui.parts) > 0
+                            ):
+                                await self.db.create_message_parts(
+                                    final_user_message_ui.id, final_user_message_ui.parts
+                                )
                     elif task.status.state == a2a_types.TaskState.failed:
                         logger.error(f"Task failed: {task}")
                     elif task.status.state == a2a_types.TaskState.completed:
                         logger.info(f"Task completed: {task}")
                     elif task.status.state == a2a_types.TaskState.working:
-                        logger.info(f"Task working: {task}")
+                        # logger.info(f"Task working: {task}")
+                        pass
                     else:
                         logger.info(f"Task other status: {task}")
 
-                elif isinstance(success_response.result, a2a_types.Message):
-                    logger.info(f"a2a - message: {success_response}")
+                if message is not None:
+                    # logger.info(f"a2a - message: {message}")
                     await self.db.create_message(
-                        success_response, chat_id, task_id, context_id
+                        message, chat_id, task_id, context_id
                     )
                     if (
-                        success_response.result.parts
-                        and len(success_response.result.parts) > 0
+                        message.parts
+                        and len(message.parts) > 0
                     ):
                         await self.db.create_message_parts(
-                            success_response.result.messageId,
-                            success_response.result.parts,
+                            message.message_id,
+                            message.parts,
                         )
 
             if active_message_props.text_part_id is not None:
@@ -431,9 +474,14 @@ class ChatService:
                 },
             )
 
+        except asyncio.CancelledError:
+            # Client disconnected or stream was cancelled - this is normal behavior
+            logger.info(f"Chat stream cancelled for chat {chat_id} (client disconnected or stream cancelled)")
+            # Re-raise to properly propagate the cancellation
+            raise
         except Exception as e:
             error_msg = (
-                f"Failed to create chat: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+                f"Error in chat stream: {str(e)}\nTraceback:\n{traceback.format_exc()}"
             )
             logger.error(error_msg)
             yield ErrorUIMessageStreamPart(errorText=str(e))
@@ -530,15 +578,19 @@ class ChatService:
     async def _prepare_messages(self, request: ChatRequest) -> List[a2a_types.Message]:
         """Convert chat history to a2a messages."""
         messages: List[a2a_types.Message] = []
-        for role, content in request.history:
-            if role == "human":
+        for message in request.messages:
+            role = message.role
+            content = message.content
+            if role == "user":
                 messages.append(
                     a2a_types.Message(content=content, role=a2a_types.Role.user)
                 )
-            elif role == "assistant":
+            elif role == "assistant" or role == "agent":
                 messages.append(
                     a2a_types.Message(content=content, role=a2a_types.Role.agent)
                 )
+            else:
+                logger.warning(f"Unknown role: {role}")
         return messages
 
     async def _save_message(

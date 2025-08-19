@@ -22,7 +22,7 @@ import { useSpeech } from 'react-text-to-speech';
 import { UIMessage } from '@ai-sdk/react';
 import { convertUIMessageToMessage } from '@/lib/messages';
 import { useTranslation } from 'react-i18next';
-import { PartRenderer } from './parts/PartRenderer';
+import { MemoizedPartRenderer } from './parts/PartRenderer';
 
 const MessageBox = ({
   uiMessage,
@@ -161,7 +161,7 @@ const MessageBox = ({
                   // 检查是否需要跳过渲染（由于之前的插件处理了多个部分）
                   const skipIndices = new Set<number>();
                   return !skipIndices.has(index) && (
-                    <PartRenderer
+                    <MemoizedPartRenderer
                       key={uiMessage.id + "_" + index}
                       className='flex flex-col pb-1'
                       part={part}

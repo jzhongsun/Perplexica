@@ -78,8 +78,8 @@ def sk_item_to_a2a_part(item: CMC_ITEM_TYPES) -> Part:
 def sk_message_to_a2a_message(
     message: StreamingChatMessageContent,
     message_id: str | None = None,
-    contextId: str | None = None,
-    taskId: str | None = None,
+    context_id: str | None = None,
+    task_id: str | None = None,
 ) -> tuple[Message, str]:
     if message_id is None:
         message_id = (
@@ -97,9 +97,9 @@ def sk_message_to_a2a_message(
 
     return (
         Message(
-            contextId=contextId,
-            taskId=taskId,
-            messageId=message_id,
+            context_id=context_id,
+            task_id=task_id,
+            message_id=message_id,
             metadata=message.metadata,
             parts=[sk_item_to_a2a_part(item) for item in message.items],
             role=Role.user if message.role == AuthorRole.USER else Role.agent,
@@ -142,7 +142,7 @@ class SemanticKernelAgentExecutor(AgentExecutor):
             task = new_task(context.message)
             await event_queue.enqueue_event(task)
 
-        task_updater = TaskUpdater(event_queue, task.id, task.contextId)
+        task_updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         agent = self.agent_builder(self.agent_name, self.agent_card, self.agent_config)
         logger.info(f"Agent created: {agent} - type: {type(agent)}")
@@ -175,7 +175,7 @@ class SemanticKernelAgentExecutor(AgentExecutor):
                 if previous_message_id != message_id:
                     previous_message_id = message_id
                 a2a_message, message_id = sk_message_to_a2a_message(
-                    response_message, previous_message_id, task.contextId, task.id
+                    response_message, previous_message_id, task.context_id, task.id
                 )
                 previous_message_id = message_id
                 await task_updater.update_status(TaskState.working, message=a2a_message)

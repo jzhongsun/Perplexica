@@ -48,7 +48,6 @@ from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.connectors.mcp import (
     MCPPluginBase,
     MCPSsePlugin,
-    MCPStreamableHttpPlugin,
 )
 from semantic_kernel.kernel import Kernel, KernelPlugin, KernelArguments
 from openai import AsyncOpenAI
@@ -61,6 +60,53 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
+SPEAKER_ID_META_KEY = "speaker_id"
+
+# Trader
+SPEAKER_ID_TRADING_TRADER = "trading.trader"
+
+# Researchers
+SPEAKER_ID_TRADING_BULL = "trading.researcher_bull"
+SPEAKER_ID_TRADING_BEAR = "trading.researcher_bear"
+
+SPEAKER_ID_TRADING_INVEST_JUDGE = "trading.researcher_invest_judge"
+
+# Analysts
+SPEAKER_ID_TRADING_ANALYST_MARKET = "trading.analyst_market"
+SPEAKER_ID_TRADING_ANALYST_SOCIAL = "trading.analyst_social"
+SPEAKER_ID_TRADING_ANALYST_NEWS = "trading.analyst_news"
+SPEAKER_ID_TRADING_ANALYST_FUNDAMENTALS = "trading.analyst_fundamentals"
+
+SPEAKER_ID_TRADING_RISK_MANAGER = "trading.risk_manager"
+
+# Risk
+SPEAKER_ID_TRADING_RISK_RISKY = "trading.risk_risky"
+SPEAKER_ID_TRADING_RISK_SAFE = "trading.risk_safe"
+SPEAKER_ID_TRADING_RISK_NEUTRAL = "trading.risk_neutral"
+SPEAKER_ID_TRADING_RISK_JUDGE = "trading.risk_judge"
+
+def name_to_speaker_id(name: str) -> str:
+    if name == "market":
+        return SPEAKER_ID_TRADING_ANALYST_MARKET
+    elif name == "social":
+        return SPEAKER_ID_TRADING_ANALYST_SOCIAL
+    elif name == "news":
+        return SPEAKER_ID_TRADING_ANALYST_NEWS
+    elif name == "fundamentals":
+        return SPEAKER_ID_TRADING_ANALYST_FUNDAMENTALS
+    elif name == "risk":
+        return SPEAKER_ID_TRADING_RISK_MANAGER
+    elif name == "risky":
+        return SPEAKER_ID_TRADING_RISK_RISKY
+    elif name == "safe":
+        return SPEAKER_ID_TRADING_RISK_SAFE
+    elif name == "neutral":
+        return SPEAKER_ID_TRADING_RISK_NEUTRAL
+    elif name == "judge":
+        return SPEAKER_ID_TRADING_RISK_JUDGE
+    else:
+        logger.error(f"Invalid name: {name}")
+        return name
 
 class FinancialTradingAgentConfig(BaseModel):
     # Model Configuration
@@ -163,6 +209,7 @@ async def async_invoke_analyst_component(
         )
         if response is None:
             continue
+        response.metadata[SPEAKER_ID_META_KEY] = name_to_speaker_id(analyst_name)
         chat_history.add_message(message=response)
         response_stream_queue.put_nowait(
             AgentResponseItem(message=response, thread=thread)
@@ -172,6 +219,7 @@ async def async_invoke_analyst_component(
         for item in response.items:
             if isinstance(item, FunctionCallContent):
                 function_call_content = item
+                function_call_content.metadata[SPEAKER_ID_META_KEY] = name_to_speaker_id(analyst_name)
                 function_call_contents.append(function_call_content)
 
         if function_call_contents and len(function_call_contents) > 0:
@@ -198,6 +246,7 @@ async def async_invoke_analyst_component(
                 function_result_message_content = (
                     function_result_content.to_chat_message_content()
                 )
+                function_result_message_content.metadata[SPEAKER_ID_META_KEY] = name_to_speaker_id(analyst_name)
                 chat_history.add_message(message=function_result_message_content)
                 response_stream_queue.put_nowait(
                     AgentResponseItem(
@@ -504,6 +553,7 @@ async def invoke_researchers_stream(
         ):
             if chunk is None:
                 continue
+            chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_BULL
             yield AgentResponseItem(message=chunk, thread=thread)
             all_messages.append(chunk)
         response = reduce(lambda x, y: x + y, all_messages)
@@ -536,6 +586,7 @@ async def invoke_researchers_stream(
         ):
             if chunk is None:
                 continue
+            chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_BEAR
             yield AgentResponseItem(message=chunk, thread=thread)
             all_messages.append(chunk)
         response = reduce(lambda x, y: x + y, all_messages)
@@ -576,6 +627,7 @@ async def invoke_researchers_stream(
     ):
         if chunk is None:
             continue
+        chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_INVEST_JUDGE
         yield AgentResponseItem(message=chunk, thread=thread)
         all_messages.append(chunk)
     response = reduce(lambda x, y: x + y, all_messages)
@@ -649,6 +701,7 @@ async def invoke_trader_stream(
     ):
         if chunk is None:
             continue
+        chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_TRADER
         yield AgentResponseItem(message=chunk, thread=thread)
         all_messages.append(chunk)
     response = reduce(lambda x, y: x + y, all_messages)
@@ -743,6 +796,7 @@ async def invoke_risk_analysis_stream(
         ):
             if chunk is None:
                 continue
+            chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_RISK_RISKY
             yield AgentResponseItem(message=chunk, thread=thread)
             all_messages.append(chunk)
         response = reduce(lambda x, y: x + y, all_messages)
@@ -783,6 +837,7 @@ async def invoke_risk_analysis_stream(
         ):
             if chunk is None:
                 continue
+            chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_RISK_SAFE
             yield AgentResponseItem(message=chunk, thread=thread)
             all_messages.append(chunk)
         response = reduce(lambda x, y: x + y, all_messages)
@@ -825,6 +880,7 @@ async def invoke_risk_analysis_stream(
         ):
             if chunk is None:
                 continue
+            chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_RISK_NEUTRAL
             yield AgentResponseItem(message=chunk, thread=thread)
             all_messages.append(chunk)
         response = reduce(lambda x, y: x + y, all_messages)
@@ -870,6 +926,7 @@ async def invoke_risk_analysis_stream(
     ):
         if chunk is None:
             continue
+        chunk.metadata[SPEAKER_ID_META_KEY] = SPEAKER_ID_TRADING_RISK_JUDGE
         yield AgentResponseItem(message=chunk, thread=thread)
         all_messages.append(chunk)
     response = reduce(lambda x, y: x + y, all_messages)

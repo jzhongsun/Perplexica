@@ -71,15 +71,12 @@ const ChatWindow = ({ chat, initialMessage }: {
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
 
-  const transport = new DefaultChatTransport({
-    api: 'http://localhost:8000/api/v1/chat-stream'
-  });
-
   // Move useChat to top level - this is the fix for the Rules of Hooks violation
   const chatHelper = useChat<UIMessage<ChatMessageMeta>>({
     id: chat.id,
-    transport: transport,
-    experimental_throttle: 50
+    transport: new DefaultChatTransport({
+      api: 'http://localhost:8000/api/v1/chat-stream'
+    }),
   });
 
   const sendMessage = async (message: string, messageId?: string) => {
